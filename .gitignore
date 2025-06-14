@@ -1,0 +1,62 @@
+# .NET Core / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.pdb
+*.exe
+.vs/
+.vscode/
+packages/
+TestResults/
+*.nupkg
+*.snupkg
+appsettings.Development.json
+appsettings.Local.json
+
+# Node.js / React / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm-cache/
+.yarn-integrity
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+dist/
+build/
+coverage/
+*.tgz
+*.tar.gz
+
+# IDEs and Editors
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Build outputs
+out/
+lib/
+*.tsbuildinfo
+
+# Temporary files
+tmp/
+temp/
