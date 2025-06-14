@@ -1,10 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Ocelot.Configuration.File;
 using Ocelot.Configuration.Repository;
 using Ocelot.Responses;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.Interfaces;
 using OcelotGateway.Domain.ValueObjects;
+using OcelotGateway.Gateway.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,10 +21,18 @@ namespace OcelotGateway.Gateway.Providers
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly string _environment;
+        private readonly ILogger<DatabaseConfigurationProvider> _logger;
+        private readonly ConfigurationCacheService _cacheService;
 
-        public DatabaseConfigurationProvider(IServiceProvider serviceProvider, string environment = "Development")
+        public DatabaseConfigurationProvider(
+            IServiceProvider serviceProvider, 
+            ConfigurationCacheService cacheService,
+            ILogger<DatabaseConfigurationProvider> logger,
+            string environment = "Development")
         {
             _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _environment = environment;
         }
 
@@ -30,85 +40,24 @@ namespace OcelotGateway.Gateway.Providers
         {
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var configRepository = scope.ServiceProvider.GetRequiredService<IConfigurationVersionRepository>();
-
-                // Get active configuration for the current environment
-                var activeConfig = await configRepository.GetActiveConfigurationAsync(_environment);
+                _logger.LogInformation("Loading Ocelot configuration for environment: {Environment}", _environment);
                 
-                if (activeConfig == null)
+                var fileConfig = await _cacheService.GetConfigurationAsync(_environment);
+                
+                if (fileConfig == null)
                 {
+                    _logger.LogWarning("No configuration found for environment: {Environment}", _environment);
                     return new ErrorResponse<FileConfiguration>(new List<Ocelot.Errors.Error>());
                 }
 
-                // Convert domain model to Ocelot configuration
-                var fileConfig = new FileConfiguration
-                {
-                    GlobalConfiguration = new FileGlobalConfiguration
-                    {
-                        BaseUrl = null, // This would be set from a configuration setting
-                        RequestIdKey = "OcRequestId",
-                        DownstreamScheme = "http",
-                        HttpHandlerOptions = new FileHttpHandlerOptions
-                        {
-                            AllowAutoRedirect = false,
-                            UseCookieContainer = false,
-                            UseTracing = false
-                        }
-                    },
-                    Routes = new List<FileRoute>()
-                };
-
-                // Add routes to the configuration
-                foreach (var route in activeConfig.RouteConfigurations.Where(r => r.IsActive))
-                {
-                    var fileRoute = new FileRoute
-                    {
-                        DownstreamPathTemplate = route.DownstreamPathTemplate,
-                        UpstreamPathTemplate = route.UpstreamPathTemplate,
-                        DownstreamScheme = route.DownstreamScheme,
-                        Key = route.Name,
-                        DownstreamHostAndPorts = new List<FileHostAndPort>()
-                    };
-
-                    // Add downstream hosts and ports
-                    foreach (var hostAndPort in route.DownstreamHostAndPorts)
-                    {
-                        fileRoute.DownstreamHostAndPorts.Add(new FileHostAndPort
-                        {
-                            Host = hostAndPort.Host,
-                            Port = hostAndPort.Port
-                        });
-                    }
-
-                    // Add HTTP methods
-                    if (string.IsNullOrEmpty(route.UpstreamHttpMethod))
-                    {
-                        if (route.UpstreamHttpMethods != null && route.UpstreamHttpMethods.Any())
-                        {
-                            fileRoute.UpstreamHttpMethod = new List<string>();
-                            foreach (var method in route.UpstreamHttpMethods)
-                            {
-                                fileRoute.UpstreamHttpMethod.Add(method);
-                            }
-                        }
-                        else
-                        {
-                            fileRoute.UpstreamHttpMethod = new List<string> { "GET" };
-                        }
-                    }
-                    else
-                    {
-                        fileRoute.UpstreamHttpMethod = new List<string> { route.UpstreamHttpMethod };
-                    }
-
-                    fileConfig.Routes.Add(fileRoute);
-                }
+                _logger.LogInformation("Configuration loaded successfully for environment: {Environment} with {RouteCount} routes", 
+                    _environment, fileConfig.Routes.Count);
 
                 return new OkResponse<FileConfiguration>(fileConfig);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Error loading configuration for environment: {Environment}", _environment);
                 return new ErrorResponse<FileConfiguration>(new List<Ocelot.Errors.Error>());
             }
         }

@@ -60,3 +60,4 @@ lib/
 # Temporary files
 tmp/
 temp/
+.npm-cache

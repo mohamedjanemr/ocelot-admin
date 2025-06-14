@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OcelotGateway.Gateway", "Oc
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OcelotGateway.WebApi", "OcelotGateway.WebApi\OcelotGateway.WebApi.csproj", "{4EA13BB3-2FCD-49B6-B1BE-E426CC6626B6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OcelotGateway.Tests", "OcelotGateway.Tests\OcelotGateway.Tests.csproj", "{0AD21609-7A85-409A-9903-2D352E940711}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{4EA13BB3-2FCD-49B6-B1BE-E426CC6626B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4EA13BB3-2FCD-49B6-B1BE-E426CC6626B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4EA13BB3-2FCD-49B6-B1BE-E426CC6626B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0AD21609-7A85-409A-9903-2D352E940711}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0AD21609-7A85-409A-9903-2D352E940711}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0AD21609-7A85-409A-9903-2D352E940711}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0AD21609-7A85-409A-9903-2D352E940711}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

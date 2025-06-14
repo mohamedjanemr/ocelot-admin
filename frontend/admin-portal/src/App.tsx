@@ -1,35 +1,51 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+// import { Toaster } from '@/components/ui/sonner'; // Alternative: shadcn sonner
+import Layout from './components/layout/Layout';
+import Dashboard from './pages/Dashboard';
+import RoutesPage from './pages/Routes';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <Router>
+      <div className="App">
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/routes" element={<RoutesPage />} />
+            <Route path="/versions" element={<div className="p-6 text-center text-muted-foreground">Configuration Versions page coming soon...</div>} />
+            <Route path="/health" element={<div className="p-6 text-center text-muted-foreground">System Health page coming soon...</div>} />
+          </Routes>
+        </Layout>
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            className: 'text-sm',
+            style: {
+              background: 'hsl(var(--card))',
+              color: 'hsl(var(--card-foreground))',
+              border: '1px solid hsl(var(--border))',
+            },
+            success: {
+              iconTheme: {
+                primary: 'hsl(var(--primary))',
+                secondary: 'hsl(var(--primary-foreground))',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: 'hsl(var(--destructive))',
+                secondary: 'hsl(var(--destructive-foreground))',
+              },
+            },
+          }}
+        />
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </Router>
+  );
 }
 
-export default App
+export default App;

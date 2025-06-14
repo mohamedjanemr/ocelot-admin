@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Caching.Memory;
 using Ocelot.Configuration.Repository;
 using Ocelot.DependencyInjection;
 using OcelotGateway.Gateway.Providers;
+using OcelotGateway.Gateway.Services;
 using System;
 
 namespace OcelotGateway.Gateway.Configuration
@@ -19,8 +21,19 @@ namespace OcelotGateway.Gateway.Configuration
         /// <returns>The Ocelot builder</returns>
         public static IOcelotBuilder AddDatabaseConfiguration(this IOcelotBuilder builder, string environment = "Development")
         {
+            // Add memory cache if not already added
+            builder.Services.AddMemoryCache();
+            
+            // Add configuration cache service
+            builder.Services.AddSingleton<ConfigurationCacheService>();
+            
+            // Add database configuration provider
             builder.Services.AddSingleton<IFileConfigurationRepository>(provider =>
-                new DatabaseConfigurationProvider(provider, environment));
+            {
+                var cacheService = provider.GetRequiredService<ConfigurationCacheService>();
+                var logger = provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<DatabaseConfigurationProvider>>();
+                return new DatabaseConfigurationProvider(provider, cacheService, logger, environment);
+            });
 
             return builder;
         }

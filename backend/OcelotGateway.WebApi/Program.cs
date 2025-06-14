@@ -1,41 +1,80 @@
+using Microsoft.EntityFrameworkCore;
+using OcelotGateway.Application.Interfaces;
+using OcelotGateway.Application.Services;
+using OcelotGateway.Domain.Interfaces;
+using OcelotGateway.Infrastructure.Data;
+using OcelotGateway.Infrastructure.Repositories;
+using OcelotGateway.WebApi.Hubs;
+using FastEndpoints;
+using FastEndpoints.Swagger;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// Add Entity Framework
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? 
+                     "Data Source=ocelot_gateway.db"));
+
+// Add repositories
+builder.Services.AddScoped<IRouteConfigRepository, RouteConfigRepository>();
+builder.Services.AddScoped<IConfigurationVersionRepository, ConfigurationVersionRepository>();
+
+// Add application services
+builder.Services.AddScoped<IRouteConfigService, RouteConfigService>();
+builder.Services.AddScoped<IConfigurationVersionService, ConfigurationVersionService>();
+
+// Add FastEndpoints
+builder.Services.AddFastEndpoints();
+
+// Add FastEndpoints Swagger
+builder.Services.SwaggerDocument(o =>
+{
+    o.DocumentSettings = s =>
+    {
+        s.Title = "Ocelot Gateway Admin API";
+        s.Version = "v1";
+        s.Description = "API for managing Ocelot Gateway configurations";
+    };
+});
+
+// Add SignalR
+builder.Services.AddSignalR();
+
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwaggerGen();
 }
+
+// Enable CORS
+app.UseCors("AllowAll");
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// Configure FastEndpoints
+app.UseFastEndpoints();
 
-app.MapGet("/weatherforecast", () =>
+// Map SignalR hub
+app.MapHub<ConfigurationHub>("/configurationHub");
+
+// Ensure database is created
+using (var scope = app.Services.CreateScope())
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    context.Database.EnsureCreated();
+}
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
