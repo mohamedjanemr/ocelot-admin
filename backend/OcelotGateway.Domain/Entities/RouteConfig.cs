@@ -48,8 +48,9 @@ namespace OcelotGateway.Domain.Entities
             Name = name ?? throw new ArgumentNullException(nameof(name));
             DownstreamPathTemplate = downstreamPathTemplate ?? throw new ArgumentNullException(nameof(downstreamPathTemplate));
             UpstreamPathTemplate = upstreamPathTemplate ?? throw new ArgumentNullException(nameof(upstreamPathTemplate));
-            UpstreamHttpMethod = upstreamHttpMethod;
-            UpstreamHttpMethods = upstreamHttpMethod != null ? new List<string> { upstreamHttpMethod } : new List<string>();
+            UpstreamHttpMethod = upstreamHttpMethod ?? "GET";
+            UpstreamHttpMethods = !string.IsNullOrEmpty(upstreamHttpMethod) ? new List<string> { upstreamHttpMethod } : new List<string> { "GET" };
+            DownstreamHttpMethod = upstreamHttpMethod ?? "GET";
             DownstreamScheme = downstreamScheme ?? "http";
             RouteIsCaseSensitive = false;
             DownstreamHostAndPorts = downstreamHostAndPorts ?? throw new ArgumentNullException(nameof(downstreamHostAndPorts));
@@ -57,6 +58,12 @@ namespace OcelotGateway.Domain.Entities
             IsActive = true;
             CreatedAt = DateTime.UtcNow;
             CreatedBy = createdBy ?? "System";
+            ServiceName = string.Empty;
+            LoadBalancerOptions = string.Empty;
+            AuthenticationOptions = string.Empty;
+            RateLimitOptions = string.Empty;
+            QoSOptions = string.Empty;
+            UpdatedBy = createdBy ?? "System";
         }
 
         public void Update(

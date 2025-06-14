@@ -14,12 +14,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { LoadingState } from '@/components/ui/loading-state';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 import { useApi } from '../hooks/useApi';
 import { healthApi, routeConfigApi } from '../services/api';
 
 export default function Dashboard() {
   const { data: healthData, loading: healthLoading, error: healthError } = useApi(() => healthApi.getHealth());
-  const { data: routesData, loading: routesLoading } = useApi(() => routeConfigApi.getAll(1, 5));
+  const { data: routesData, loading: routesLoading, error: routesError } = useApi(() => routeConfigApi.getAll(1, 5));
+
+  if (healthLoading && routesLoading) {
+    return (
+      <ErrorBoundary>
+        <div className="space-y-8">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground">
+              Monitor your Ocelot Gateway configuration and system performance.
+            </p>
+          </div>
+          <LoadingState type="dashboard" />
+        </div>
+      </ErrorBoundary>
+    );
+  }
 
   const stats = [
     {
@@ -65,174 +84,182 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Monitor your Ocelot Gateway configuration and system performance.
-        </p>
-      </div>
+    <ErrorBoundary>
+      <div className="space-y-8">
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Monitor your Ocelot Gateway configuration and system performance.
+          </p>
+        </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Card key={stat.title} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <div className={`p-2 rounded-md ${stat.bgColor}`}>
-                  <Icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {healthLoading ? (
-                    <Skeleton className="h-8 w-16" />
-                  ) : (
-                    stat.value
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
-                <div className="flex items-center text-xs text-muted-foreground mt-2">
-                  {stat.changeType === 'positive' ? (
-                    <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
-                  ) : (
-                    <Clock className="mr-1 h-3 w-3" />
-                  )}
-                  <span className={stat.changeType === 'positive' ? 'text-green-600' : 'text-muted-foreground'}>
-                    {stat.change}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* System Health */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center space-x-2">
-              <div className="p-2 bg-blue-50 rounded-md">
-                <Activity className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <CardTitle>System Health</CardTitle>
-                <CardDescription>Real-time system monitoring</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {healthLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-                <Skeleton className="h-4 w-2/3" />
-              </div>
-            ) : healthError ? (
-              <div className="text-center py-6">
-                <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
-                <p className="text-sm font-medium text-red-600">Error loading health data</p>
-                <p className="text-xs text-muted-foreground mt-1">{healthError}</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Overall Status</span>
-                  <Badge variant={healthData?.status === 'Healthy' ? 'default' : 'destructive'}>
-                    <div className="w-2 h-2 rounded-full bg-current mr-1.5" />
-                    {healthData?.status}
-                  </Badge>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Version
-                    </p>
-                    <p className="text-sm font-semibold">{healthData?.version || 'N/A'}</p>
+        {/* Stats Grid */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={stat.title} className="hover:shadow-lg transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                  <div className={`p-2 rounded-md ${stat.bgColor}`}>
+                    <Icon className={`h-4 w-4 ${stat.color}`} />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Last Check
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {healthData?.timestamp ? new Date(healthData.timestamp).toLocaleTimeString() : 'N/A'}
-                    </p>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {healthLoading ? (
+                      <Skeleton className="h-8 w-16" />
+                    ) : (
+                      stat.value
+                    )}
                   </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
+                  <div className="flex items-center text-xs text-muted-foreground mt-2">
+                    {stat.changeType === 'positive' ? (
+                      <TrendingUp className="mr-1 h-3 w-3 text-green-500" />
+                    ) : (
+                      <Clock className="mr-1 h-3 w-3" />
+                    )}
+                    <span className={stat.changeType === 'positive' ? 'text-green-600' : 'text-muted-foreground'}>
+                      {stat.change}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
 
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
+        {/* Content Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* System Health */}
+          <Card>
+            <CardHeader>
               <div className="flex items-center space-x-2">
-                <div className="p-2 bg-purple-50 rounded-md">
-                  <Zap className="h-4 w-4 text-purple-600" />
+                <div className="p-2 bg-blue-50 rounded-md">
+                  <Activity className="h-4 w-4 text-blue-600" />
                 </div>
                 <div>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest configuration changes</CardDescription>
+                  <CardTitle>System Health</CardTitle>
+                  <CardDescription>Real-time system monitoring</CardDescription>
                 </div>
               </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {routesLoading ? (
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {healthLoading ? (
                 <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center space-x-3">
-                      <Skeleton className="h-10 w-10 rounded-lg" />
-                      <div className="space-y-1 flex-1">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/2" />
-                      </div>
-                    </div>
-                  ))}
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+              ) : healthError ? (
+                <div className="text-center py-6">
+                  <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+                  <p className="text-sm font-medium text-red-600">Error loading health data</p>
+                  <p className="text-xs text-muted-foreground mt-1">{healthError}</p>
                 </div>
               ) : (
-                <>
-                  {routesData?.routeConfigs?.slice(0, 3).map((route) => (
-                    <div key={route.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-                        <Settings className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {route.upstreamPathTemplate}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {route.downstreamPathTemplate} • {route.downstreamScheme}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="secondary">Active</Badge>
-                        <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
-                      </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Overall Status</span>
+                    <Badge variant={healthData?.status === 'Healthy' ? 'default' : 'destructive'}>
+                      <div className="w-2 h-2 rounded-full bg-current mr-1.5" />
+                      {healthData?.status}
+                    </Badge>
+                  </div>
+                  <Separator />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Version
+                      </p>
+                      <p className="text-sm font-semibold">{healthData?.version || 'N/A'}</p>
                     </div>
-                  )) || (
-                    <div className="text-center py-8">
-                      <Clock className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                      <p className="text-sm font-medium text-muted-foreground">No recent activity</p>
-                      <p className="text-xs text-muted-foreground">Configuration changes will appear here</p>
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Last Check
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {healthData?.timestamp ? new Date(healthData.timestamp).toLocaleTimeString() : 'N/A'}
+                      </p>
                     </div>
-                  )}
-                </>
+                  </div>
+                </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-purple-50 rounded-md">
+                    <Zap className="h-4 w-4 text-purple-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>Latest configuration changes</CardDescription>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {routesLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center space-x-3">
+                        <Skeleton className="h-10 w-10 rounded-lg" />
+                        <div className="space-y-1 flex-1">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : routesError ? (
+                  <div className="text-center py-6">
+                    <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+                    <p className="text-sm font-medium text-red-600">Error loading routes data</p>
+                    <p className="text-xs text-muted-foreground mt-1">{routesError}</p>
+                  </div>
+                ) : (
+                  <>
+                    {routesData?.routeConfigs?.slice(0, 3).map((route) => (
+                      <div key={route.id} className="flex items-center space-x-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
+                          <Settings className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {route.upstreamPathTemplate}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {route.downstreamPathTemplate} • {route.downstreamScheme}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="secondary">Active</Badge>
+                          <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      </div>
+                    )) || (
+                      <EmptyState
+                        icon={<Clock className="h-8 w-8 text-muted-foreground" />}
+                        title="No recent activity"
+                        description="Configuration changes will appear here"
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 } 
