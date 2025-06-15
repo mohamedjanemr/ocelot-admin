@@ -1,258 +1,273 @@
-using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
+using AutoMapper;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 using Moq;
 using OcelotGateway.Application.DTOs;
+using OcelotGateway.Application.Interfaces;
+using OcelotGateway.Application.Mappings; // Assuming MappingProfile is here
 using OcelotGateway.Application.Services;
 using OcelotGateway.Domain.Entities;
-using OcelotGateway.Domain.Interfaces;
+using OcelotGateway.Domain.ValueObjects;
+using OcelotGateway.Infrastructure.Repositories;
+using OcelotGateway.Tests.Common;
+using OcelotGateway.WebApi.Hubs; // For ConfigurationHub
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
-namespace OcelotGateway.Tests.Services;
-
-public class RouteConfigServiceTests
+namespace OcelotGateway.Tests.Services
 {
-    private readonly Mock<IRouteConfigRepository> _mockRepository;
-    private readonly RouteConfigService _service;
-
-    public RouteConfigServiceTests()
+    public class RouteConfigServiceTests : DatabaseTestBase // Inherits from DatabaseTestBase for DbContext
     {
-        _mockRepository = new Mock<IRouteConfigRepository>();
-        _service = new RouteConfigService(_mockRepository.Object);
-    }
+        private readonly RouteConfigService _routeConfigService;
+        private readonly Mock<IHubContext<ConfigurationHub>> _mockHubContext;
+        private readonly Mock<IHubClients> _mockHubClients;
+        private readonly Mock<IClientProxy> _mockClientProxy;
+        // IMapper is not injected into RouteConfigService, it uses a static MapToDto method.
 
-    [Fact]
-    public async Task GetAllAsync_ShouldReturnAllRouteConfigs()
-    {
-        // Arrange
-        var routeConfigs = new List<RouteConfig>
+        public RouteConfigServiceTests()
         {
-            new RouteConfig
+            // 1. Setup Mocks for SignalR
+            _mockClientProxy = new Mock<IClientProxy>();
+            _mockHubClients = new Mock<IHubClients>();
+            _mockHubClients.Setup(clients => clients.All).Returns(_mockClientProxy.Object);
+            _mockHubContext = new Mock<IHubContext<ConfigurationHub>>();
+            _mockHubContext.Setup(hub => hub.Clients).Returns(_mockHubClients.Object);
+
+            // 2. Setup AutoMapper - Not strictly needed for service instantiation if not injected,
+            // but good for verifying DTO mapping if the service returns DTOs created by AutoMapper.
+            // RouteConfigService uses a static MapToDto, so an IMapper instance isn't passed to its constructor.
+            // var mapperConfig = new MapperConfiguration(cfg =>
+            // {
+            //     cfg.AddProfile<MappingProfile>();
+            // });
+            // _mapper = mapperConfig.CreateMapper();
+
+
+            // 3. Setup Repository
+            var routeRepository = new RouteConfigRepository(DbContext); // DbContext comes from DatabaseTestBase
+
+            // 4. Instantiate the Service
+            // Based on previous steps, RouteConfigService constructor takes (IRouteConfigRepository, IHubContext<ConfigurationHub>)
+            _routeConfigService = new RouteConfigService(routeRepository, _mockHubContext.Object);
+        }
+
+        private CreateRouteConfigDto CreateSampleRouteDto(string name = "TestRoute", string env = "Development", bool isActive = true)
+        {
+            // The CreateRouteConfigDto does not have IsActive. It's managed by ToggleRouteStatusAsync or default entity state.
+            return new CreateRouteConfigDto
             {
-                Id = 1,
-                Name = "Test Route 1",
-                DownstreamPath = "/api/test1",
-                UpstreamPath = "/test1",
-                UpstreamHttpMethods = new List<string> { "GET" },
+                Name = name,
+                DownstreamPathTemplate = "/downstream/{everything}",
+                UpstreamPathTemplate = "/upstream/{everything}",
+                UpstreamHttpMethod = "GET,POST", // This should be a string if UpstreamHttpMethods is a list in the entity
                 DownstreamScheme = "http",
-                DownstreamHost = "localhost",
-                DownstreamPort = 5001,
-                IsActive = true
-            },
-            new RouteConfig
+                DownstreamHostAndPorts = new List<HostAndPortDto> { new HostAndPortDto { Host = "localhost", Port = 8080 } },
+                Environment = env,
+                ServiceName = "TestService"
+            };
+        }
+
+        private RouteConfig SeedRouteDirectly(string name = "SeededRoute", string env = "Development", bool isActive = true, string createdBy = "seed_user")
+        {
+            var route = new RouteConfig(
+                name,
+                $"/downstream/{name.ToLower()}",
+                $"/upstream/{name.ToLower()}",
+                "GET",
+                "http",
+                new List<HostAndPort> { new HostAndPort("localhost", 9090) },
+                env,
+                createdBy
+            );
+            if (!isActive) route.Deactivate();
+            DbContext.RouteConfigs.Add(route);
+            DbContext.SaveChanges();
+            return route;
+        }
+
+
+        [Fact]
+        public async Task CreateRouteAsync_ShouldSaveToDatabaseAndNotifyHub()
+        {
+            // Arrange
+            var dto = CreateSampleRouteDto();
+            var createdBy = "test_user";
+
+            // Act
+            var result = await _routeConfigService.CreateRouteAsync(dto, createdBy);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(dto.Name, result.Name);
+
+            var routeInDb = await DbContext.RouteConfigs.FindAsync(result.Id);
+            Assert.NotNull(routeInDb);
+            Assert.Equal(dto.Name, routeInDb.Name);
+            Assert.Equal(createdBy, routeInDb.CreatedBy);
+            Assert.Equal(dto.Environment, routeInDb.Environment);
+            Assert.True(routeInDb.IsActive); // Default should be active
+
+            _mockClientProxy.Verify(
+                c => c.SendCoreAsync(
+                    "ConfigurationChanged",
+                    It.Is<object[]>(o => o != null && o.Length == 1 &&
+                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteCreated" &&
+                                         o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == dto.Name &&
+                                         o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == dto.Environment),
+                    default(CancellationToken)),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateRouteAsync_ShouldUpdateDatabaseAndNotifyHub()
+        {
+            // Arrange
+            var initialEntity = SeedRouteDirectly("InitialRouteForUpdate");
+            _mockClientProxy.Invocations.Clear();
+
+            var updateDto = new UpdateRouteConfigDto
             {
-                Id = 2,
-                Name = "Test Route 2",
-                DownstreamPath = "/api/test2",
-                UpstreamPath = "/test2",
-                UpstreamHttpMethods = new List<string> { "POST" },
-                DownstreamScheme = "http",
-                DownstreamHost = "localhost",
-                DownstreamPort = 5002,
-                IsActive = false
-            }
-        };
+                Name = "UpdatedRouteName",
+                DownstreamPathTemplate = "/newdownstream/{everything}",
+                UpstreamPathTemplate = initialEntity.UpstreamPathTemplate, // Usually upstream path is key, not changed like this
+                UpstreamHttpMethod = "PUT", // This should be a string if UpstreamHttpMethods is a list in the entity
+                DownstreamScheme = "https",
+                DownstreamHostAndPorts = new List<HostAndPortDto> { new HostAndPortDto { Host = "remotehost", Port = 443 } },
+                ServiceName = "UpdatedService"
+            };
+            var updatedBy = "test_user_update";
 
-        _mockRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(routeConfigs);
+            // Act
+            var result = await _routeConfigService.UpdateRouteAsync(initialEntity.Id, updateDto, updatedBy);
 
-        // Act
-        var result = await _service.GetAllAsync();
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(updateDto.Name, result.Name);
+            Assert.Equal(updateDto.DownstreamPathTemplate, result.DownstreamPathTemplate);
 
-        // Assert
-        result.Should().HaveCount(2);
-        result.First().Name.Should().Be("Test Route 1");
-        result.Last().Name.Should().Be("Test Route 2");
-        _mockRepository.Verify(r => r.GetAllAsync(), Times.Once);
-    }
+            var routeInDb = await DbContext.RouteConfigs.FindAsync(initialEntity.Id);
+            Assert.NotNull(routeInDb);
+            Assert.Equal(updateDto.Name, routeInDb.Name);
+            Assert.Equal(updatedBy, routeInDb.UpdatedBy);
 
-    [Fact]
-    public async Task GetByIdAsync_ShouldReturnRouteConfig_WhenExists()
-    {
-        // Arrange
-        var routeConfig = new RouteConfig
+            _mockClientProxy.Verify(
+                c => c.SendCoreAsync(
+                    "ConfigurationChanged",
+                     It.Is<object[]>(o => o != null && o.Length == 1 &&
+                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteUpdated" &&
+                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == updateDto.Name &&
+                                          o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == initialEntity.Environment),
+                    default(CancellationToken)),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task DeleteRouteAsync_ShouldDeleteFromDatabaseAndNotifyHub()
         {
-            Id = 1,
-            Name = "Test Route",
-            DownstreamPath = "/api/test",
-            UpstreamPath = "/test",
-            UpstreamHttpMethods = new List<string> { "GET" },
-            DownstreamScheme = "http",
-            DownstreamHost = "localhost",
-            DownstreamPort = 5001,
-            IsActive = true
-        };
+            // Arrange
+            var routeEntityToDelete = SeedRouteDirectly("RouteToDelete");
+            _mockClientProxy.Invocations.Clear();
 
-        _mockRepository.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(routeConfig);
+            // Act
+            var deleteResult = await _routeConfigService.DeleteRouteAsync(routeEntityToDelete.Id);
 
-        // Act
-        var result = await _service.GetByIdAsync(1);
+            // Assert
+            Assert.True(deleteResult);
+            var routeInDb = await DbContext.RouteConfigs.FindAsync(routeEntityToDelete.Id);
+            Assert.Null(routeInDb);
 
-        // Assert
-        result.Should().NotBeNull();
-        result!.Name.Should().Be("Test Route");
-        result.IsActive.Should().BeTrue();
-        _mockRepository.Verify(r => r.GetByIdAsync(1), Times.Once);
-    }
+            _mockClientProxy.Verify(
+                c => c.SendCoreAsync(
+                    "ConfigurationChanged",
+                     It.Is<object[]>(o => o != null && o.Length == 1 &&
+                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteDeleted" &&
+                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == routeEntityToDelete.Name &&
+                                          o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == routeEntityToDelete.Environment),
+                    default(CancellationToken)),
+                Times.Once);
+        }
 
-    [Fact]
-    public async Task GetByIdAsync_ShouldReturnNull_WhenNotExists()
-    {
-        // Arrange
-        _mockRepository.Setup(r => r.GetByIdAsync(1)).ReturnsAsync((RouteConfig?)null);
-
-        // Act
-        var result = await _service.GetByIdAsync(1);
-
-        // Assert
-        result.Should().BeNull();
-        _mockRepository.Verify(r => r.GetByIdAsync(1), Times.Once);
-    }
-
-    [Fact]
-    public async Task CreateAsync_ShouldCreateAndReturnRouteConfig()
-    {
-        // Arrange
-        var createDto = new RouteConfigDto
+        [Fact]
+        public async Task GetRouteByIdAsync_ShouldReturnCorrectRoute()
         {
-            Name = "New Route",
-            DownstreamPath = "/api/new",
-            UpstreamPath = "/new",
-            UpstreamHttpMethods = new List<string> { "GET", "POST" },
-            DownstreamScheme = "https",
-            DownstreamHost = "api.example.com",
-            DownstreamPort = 443,
-            IsActive = true
-        };
+            // Arrange
+            var routeEntity = SeedRouteDirectly("RouteToGet");
 
-        var createdRoute = new RouteConfig
+            // Act
+            var result = await _routeConfigService.GetRouteByIdAsync(routeEntity.Id);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(routeEntity.Id, result.Id);
+            Assert.Equal(routeEntity.Name, result.Name);
+        }
+
+        [Fact]
+        public async Task GetAllRoutesAsync_ShouldReturnAllRoutes()
         {
-            Id = 1,
-            Name = createDto.Name,
-            DownstreamPath = createDto.DownstreamPath,
-            UpstreamPath = createDto.UpstreamPath,
-            UpstreamHttpMethods = createDto.UpstreamHttpMethods,
-            DownstreamScheme = createDto.DownstreamScheme,
-            DownstreamHost = createDto.DownstreamHost,
-            DownstreamPort = createDto.DownstreamPort,
-            IsActive = createDto.IsActive,
-            CreatedAt = DateTime.UtcNow
-        };
+            // Arrange
+            SeedRouteDirectly("Route1");
+            SeedRouteDirectly("Route2");
 
-        _mockRepository.Setup(r => r.CreateAsync(It.IsAny<RouteConfig>())).ReturnsAsync(createdRoute);
+            // Act
+            var results = await _routeConfigService.GetAllRoutesAsync();
 
-        // Act
-        var result = await _service.CreateAsync(createDto);
+            // Assert
+            Assert.NotNull(results);
+            Assert.Equal(2, results.Count());
+        }
 
-        // Assert
-        result.Should().NotBeNull();
-        result.Name.Should().Be("New Route");
-        result.DownstreamHost.Should().Be("api.example.com");
-        result.IsActive.Should().BeTrue();
-        _mockRepository.Verify(r => r.CreateAsync(It.IsAny<RouteConfig>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task UpdateAsync_ShouldUpdateAndReturnRouteConfig_WhenExists()
-    {
-        // Arrange
-        var updateDto = new RouteConfigDto
+        [Fact]
+        public async Task ToggleRouteStatusAsync_ShouldUpdateStatusAndNotifyHub()
         {
-            Id = 1,
-            Name = "Updated Route",
-            DownstreamPath = "/api/updated",
-            UpstreamPath = "/updated",
-            UpstreamHttpMethods = new List<string> { "PUT" },
-            DownstreamScheme = "https",
-            DownstreamHost = "updated.example.com",
-            DownstreamPort = 443,
-            IsActive = false
-        };
+            // Arrange
+            var routeEntity = SeedRouteDirectly("RouteToToggle", isActive: true);
+            Assert.True(routeEntity.IsActive);
+            _mockClientProxy.Invocations.Clear();
 
-        var existingRoute = new RouteConfig
-        {
-            Id = 1,
-            Name = "Original Route",
-            DownstreamPath = "/api/original",
-            UpstreamPath = "/original",
-            UpstreamHttpMethods = new List<string> { "GET" },
-            DownstreamScheme = "http",
-            DownstreamHost = "original.example.com",
-            DownstreamPort = 80,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow.AddDays(-1)
-        };
+            // Act: Deactivate
+            var deactivateResult = await _routeConfigService.ToggleRouteStatusAsync(routeEntity.Id, false);
 
-        var updatedRoute = new RouteConfig
-        {
-            Id = updateDto.Id,
-            Name = updateDto.Name,
-            DownstreamPath = updateDto.DownstreamPath,
-            UpstreamPath = updateDto.UpstreamPath,
-            UpstreamHttpMethods = updateDto.UpstreamHttpMethods,
-            DownstreamScheme = updateDto.DownstreamScheme,
-            DownstreamHost = updateDto.DownstreamHost,
-            DownstreamPort = updateDto.DownstreamPort,
-            IsActive = updateDto.IsActive,
-            CreatedAt = existingRoute.CreatedAt,
-            UpdatedAt = DateTime.UtcNow
-        };
+            // Assert: Deactivate
+            Assert.True(deactivateResult);
+            var routeInDb = await DbContext.RouteConfigs.FindAsync(routeEntity.Id);
+            Assert.NotNull(routeInDb);
+            Assert.False(routeInDb.IsActive);
 
-        _mockRepository.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(existingRoute);
-        _mockRepository.Setup(r => r.UpdateAsync(It.IsAny<RouteConfig>())).ReturnsAsync(updatedRoute);
+            _mockClientProxy.Verify(
+                c => c.SendCoreAsync(
+                    "ConfigurationChanged",
+                     It.Is<object[]>(o => o != null && o.Length == 1 &&
+                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteStatusChanged" &&
+                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == routeEntity.Name &&
+                                          (bool)o[0].GetType().GetProperty("IsActive").GetValue(o[0]) == false),
+                    default(CancellationToken)),
+                Times.Once);
 
-        // Act
-        var result = await _service.UpdateAsync(updateDto);
+            _mockClientProxy.Invocations.Clear();
 
-        // Assert
-        result.Should().NotBeNull();
-        result!.Name.Should().Be("Updated Route");
-        result.DownstreamHost.Should().Be("updated.example.com");
-        result.IsActive.Should().BeFalse();
-        _mockRepository.Verify(r => r.GetByIdAsync(1), Times.Once);
-        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<RouteConfig>()), Times.Once);
+            // Act: Activate
+            var activateResult = await _routeConfigService.ToggleRouteStatusAsync(routeEntity.Id, true);
+
+            // Assert: Activate
+            Assert.True(activateResult);
+            routeInDb = await DbContext.RouteConfigs.FindAsync(routeEntity.Id); // Re-fetch
+            Assert.NotNull(routeInDb);
+            Assert.True(routeInDb.IsActive);
+
+            _mockClientProxy.Verify(
+                c => c.SendCoreAsync(
+                    "ConfigurationChanged",
+                     It.Is<object[]>(o => o != null && o.Length == 1 &&
+                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteStatusChanged" &&
+                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == routeEntity.Name &&
+                                          (bool)o[0].GetType().GetProperty("IsActive").GetValue(o[0]) == true),
+                    default(CancellationToken)),
+                Times.Once);
+        }
     }
-
-    [Fact]
-    public async Task UpdateAsync_ShouldReturnNull_WhenNotExists()
-    {
-        // Arrange
-        var updateDto = new RouteConfigDto { Id = 999, Name = "Non-existent Route" };
-
-        _mockRepository.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((RouteConfig?)null);
-
-        // Act
-        var result = await _service.UpdateAsync(updateDto);
-
-        // Assert
-        result.Should().BeNull();
-        _mockRepository.Verify(r => r.GetByIdAsync(999), Times.Once);
-        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<RouteConfig>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ShouldReturnTrue_WhenExists()
-    {
-        // Arrange
-        _mockRepository.Setup(r => r.DeleteAsync(1)).ReturnsAsync(true);
-
-        // Act
-        var result = await _service.DeleteAsync(1);
-
-        // Assert
-        result.Should().BeTrue();
-        _mockRepository.Verify(r => r.DeleteAsync(1), Times.Once);
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ShouldReturnFalse_WhenNotExists()
-    {
-        // Arrange
-        _mockRepository.Setup(r => r.DeleteAsync(999)).ReturnsAsync(false);
-
-        // Act
-        var result = await _service.DeleteAsync(999);
-
-        // Assert
-        result.Should().BeFalse();
-        _mockRepository.Verify(r => r.DeleteAsync(999), Times.Once);
-    }
-} 
+}

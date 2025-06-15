@@ -31,6 +31,7 @@
     <ProjectReference Include="..\OcelotGateway.Application\OcelotGateway.Application.csproj" />
     <ProjectReference Include="..\OcelotGateway.Infrastructure\OcelotGateway.Infrastructure.csproj" />
     <ProjectReference Include="..\OcelotGateway.WebApi\OcelotGateway.WebApi.csproj" />
+    <ProjectReference Include="..\OcelotGateway.Gateway\OcelotGateway.Gateway.csproj" />
   </ItemGroup>
 
 </Project>
