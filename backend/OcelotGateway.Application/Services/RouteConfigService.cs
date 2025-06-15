@@ -1,18 +1,22 @@
+using Microsoft.AspNetCore.SignalR; // Added for SignalR
 using OcelotGateway.Application.DTOs;
 using OcelotGateway.Application.Interfaces;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.Interfaces;
 using OcelotGateway.Domain.ValueObjects;
+using OcelotGateway.WebApi.Hubs; // Added for ConfigurationHub
 
 namespace OcelotGateway.Application.Services;
 
 public class RouteConfigService : IRouteConfigService
 {
     private readonly IRouteConfigRepository _routeConfigRepository;
+    private readonly IHubContext<ConfigurationHub> _hubContext; // Added for SignalR
 
-    public RouteConfigService(IRouteConfigRepository routeConfigRepository)
+    public RouteConfigService(IRouteConfigRepository routeConfigRepository, IHubContext<ConfigurationHub> hubContext) // Added hubContext
     {
         _routeConfigRepository = routeConfigRepository;
+        _hubContext = hubContext; // Added for SignalR
     }
 
     public async Task<IEnumerable<RouteConfigDto>> GetAllRoutesAsync()
@@ -66,13 +70,15 @@ public class RouteConfigService : IRouteConfigService
             route.SetQoSOptions(createDto.QoSOptions);
 
         await _routeConfigRepository.AddAsync(route);
+        // Send SignalR notification
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = route.Environment, Type = "RouteCreated", RouteName = route.Name, Timestamp = DateTime.UtcNow });
         return MapToDto(route);
     }
 
     public async Task<RouteConfigDto?> UpdateRouteAsync(Guid id, UpdateRouteConfigDto updateDto, string updatedBy)
     {
-        var route = await _routeConfigRepository.GetByIdAsync(id);
-        if (route == null) return null;
+        var routeToUpdate = await _routeConfigRepository.GetByIdAsync(id); // Renamed for clarity
+        if (routeToUpdate == null) return null;
 
         var hostAndPorts = updateDto.DownstreamHostAndPorts.Select(h => new HostAndPort(h.Host, h.Port)).ToList();
 
@@ -95,32 +101,41 @@ public class RouteConfigService : IRouteConfigService
         if (!string.IsNullOrEmpty(updateDto.RateLimitOptions))
             route.SetRateLimitOptions(updateDto.RateLimitOptions);
         if (!string.IsNullOrEmpty(updateDto.QoSOptions))
-            route.SetQoSOptions(updateDto.QoSOptions);
+            routeToUpdate.SetQoSOptions(updateDto.QoSOptions);
 
-        await _routeConfigRepository.UpdateAsync(route);
-        return MapToDto(route);
+        await _routeConfigRepository.UpdateAsync(routeToUpdate);
+        // Send SignalR notification
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = routeToUpdate.Environment, Type = "RouteUpdated", RouteName = routeToUpdate.Name, Timestamp = DateTime.UtcNow });
+        return MapToDto(routeToUpdate);
     }
 
     public async Task<bool> DeleteRouteAsync(Guid id)
     {
-        var exists = await _routeConfigRepository.ExistsAsync(id);
-        if (!exists) return false;
+        var routeToDelete = await _routeConfigRepository.GetByIdAsync(id);
+        if (routeToDelete == null) return false;
+
+        var deletedRouteEnvironment = routeToDelete.Environment;
+        var deletedRouteName = routeToDelete.Name; // Capture name for notification
 
         await _routeConfigRepository.DeleteAsync(id);
+        // Send SignalR notification
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = deletedRouteEnvironment, Type = "RouteDeleted", RouteName = deletedRouteName, Timestamp = DateTime.UtcNow });
         return true;
     }
 
     public async Task<bool> ToggleRouteStatusAsync(Guid id, bool isActive)
     {
-        var route = await _routeConfigRepository.GetByIdAsync(id);
-        if (route == null) return false;
+        var routeToToggle = await _routeConfigRepository.GetByIdAsync(id); // Renamed for clarity
+        if (routeToToggle == null) return false;
 
         if (isActive)
-            route.Activate();
+            routeToToggle.Activate();
         else
-            route.Deactivate();
+            routeToToggle.Deactivate();
 
-        await _routeConfigRepository.UpdateAsync(route);
+        await _routeConfigRepository.UpdateAsync(routeToToggle);
+        // Send SignalR notification for status change
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = routeToToggle.Environment, Type = "RouteStatusChanged", RouteName = routeToToggle.Name, IsActive = isActive, Timestamp = DateTime.UtcNow });
         return true;
     }
 

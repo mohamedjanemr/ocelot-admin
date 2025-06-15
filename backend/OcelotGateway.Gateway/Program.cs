@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Serilog;
+using OcelotGateway.Gateway.Services; // Added for SignalRService
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,9 @@ builder.Services.AddCors(options =>
 
 // Add health checks
 builder.Services.AddHealthChecks();
+
+// Register SignalRService as a hosted service
+builder.Services.AddHostedService<SignalRService>();
 
 var app = builder.Build();
 

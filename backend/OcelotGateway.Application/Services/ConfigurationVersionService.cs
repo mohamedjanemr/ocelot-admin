@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.SignalR; // Added for SignalR
 using OcelotGateway.Application.DTOs;
 using OcelotGateway.Application.Interfaces;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.Interfaces;
+using OcelotGateway.WebApi.Hubs; // Added for ConfigurationHub
 using System.Text.Json;
 
 namespace OcelotGateway.Application.Services;
@@ -10,13 +12,16 @@ public class ConfigurationVersionService : IConfigurationVersionService
 {
     private readonly IConfigurationVersionRepository _versionRepository;
     private readonly IRouteConfigRepository _routeRepository;
+    private readonly IHubContext<ConfigurationHub> _hubContext; // Added for SignalR
 
     public ConfigurationVersionService(
         IConfigurationVersionRepository versionRepository,
-        IRouteConfigRepository routeRepository)
+        IRouteConfigRepository routeRepository,
+        IHubContext<ConfigurationHub> hubContext) // Added hubContext
     {
         _versionRepository = versionRepository;
         _routeRepository = routeRepository;
+        _hubContext = hubContext; // Added for SignalR
     }
 
     public async Task<IEnumerable<ConfigurationVersionDto>> GetAllVersionsAsync()
@@ -88,48 +93,61 @@ public class ConfigurationVersionService : IConfigurationVersionService
         }
 
         await _versionRepository.AddAsync(version);
+        // Send SignalR notification
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = version.Environment, Type = "VersionCreated", Version = version.Version, Timestamp = DateTime.UtcNow });
         return MapToDto(version);
     }
 
     public async Task<bool> PublishVersionAsync(Guid versionId, string publishedBy)
     {
-        var version = await _versionRepository.GetByIdAsync(versionId);
-        if (version == null) return false;
+        var versionToPublish = await _versionRepository.GetByIdAsync(versionId); // Renamed for clarity
+        if (versionToPublish == null) return false;
 
         // Unpublish current active version in the same environment
-        var currentActive = await _versionRepository.GetActiveConfigurationAsync(version.Environment);
+        var currentActive = await _versionRepository.GetActiveConfigurationAsync(versionToPublish.Environment);
         if (currentActive != null && currentActive.Id != versionId)
         {
             currentActive.Unpublish();
             await _versionRepository.UpdateAsync(currentActive);
+            // Send SignalR notification for the old version being unpublished
+            await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = currentActive.Environment, Type = "VersionUnpublished", Version = currentActive.Version, Timestamp = DateTime.UtcNow });
         }
 
         // Publish new version
-        version.Publish(publishedBy);
-        await _versionRepository.UpdateAsync(version);
+        versionToPublish.Publish(publishedBy);
+        await _versionRepository.UpdateAsync(versionToPublish);
+        // Send SignalR notification for the new version being published
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = versionToPublish.Environment, Type = "VersionPublished", Version = versionToPublish.Version, Timestamp = DateTime.UtcNow });
 
         return true;
     }
 
     public async Task<bool> UnpublishVersionAsync(Guid versionId)
     {
-        var version = await _versionRepository.GetByIdAsync(versionId);
-        if (version == null) return false;
+        var versionToUnpublish = await _versionRepository.GetByIdAsync(versionId); // Renamed for clarity
+        if (versionToUnpublish == null) return false;
 
-        version.Unpublish();
-        await _versionRepository.UpdateAsync(version);
+        versionToUnpublish.Unpublish();
+        await _versionRepository.UpdateAsync(versionToUnpublish);
+        // Send SignalR notification
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = versionToUnpublish.Environment, Type = "VersionUnpublished", Version = versionToUnpublish.Version, Timestamp = DateTime.UtcNow });
         return true;
     }
 
     public async Task<bool> DeleteVersionAsync(Guid id)
     {
-        var version = await _versionRepository.GetByIdAsync(id);
-        if (version == null) return false;
+        var versionToDelete = await _versionRepository.GetByIdAsync(id); // Renamed for clarity
+        if (versionToDelete == null) return false;
 
         // Don't allow deletion of active version
-        if (version.IsActive) return false;
+        if (versionToDelete.IsActive) return false;
+
+        var deletedVersionEnvironment = versionToDelete.Environment;
+        var deletedVersionNumber = versionToDelete.Version;
 
         await _versionRepository.DeleteAsync(id);
+        // Send SignalR notification
+        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = deletedVersionEnvironment, Type = "VersionDeleted", Version = deletedVersionNumber, Timestamp = DateTime.UtcNow });
         return true;
     }
 
