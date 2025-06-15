@@ -10,6 +10,8 @@ import {
   ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { usePaginatedApi, useMutation } from '../hooks/useApi';
 import { useRouteConfigNotifications } from '../hooks/useSignalR';
 import { routeConfigApi } from '../services/api';
@@ -71,7 +73,7 @@ export default function Routes() {
     }
   };
 
-  const filteredRoutes = routes.filter((route) => {
+  const filteredRoutes = (routes || []).filter((route) => {
     const matchesSearch = route.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          route.upstreamPathTemplate.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          route.downstreamPathTemplate.toLowerCase().includes(searchTerm.toLowerCase());
@@ -83,41 +85,40 @@ export default function Routes() {
     return matchesSearch && matchesEnvironment && matchesStatus;
   });
 
-  const environments = [...new Set(routes.map(route => route.environment))];
+  const environments = [...new Set((routes || []).map(route => route.environment))];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Route Configurations</h1>
-          <p className="mt-2 text-sm text-gray-700">
+          <h1 className="text-3xl font-bold tracking-tight">Route Configurations</h1>
+          <p className="text-muted-foreground">
             Manage your gateway route configurations and traffic routing rules.
           </p>
         </div>
-        <Link
-          to="/routes/new"
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
-          <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-          New Route
-        </Link>
+        <Button asChild>
+          <Link to="/routes/new">
+            <Plus className="mr-2 h-4 w-4" />
+            New Route
+          </Link>
+        </Button>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
+      <div className="bg-card border rounded-lg shadow-sm">
+        <div className="p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             {/* Search */}
             <div className="sm:col-span-2">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                  <MagnifyingGlassIcon className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <input
                   type="text"
                   placeholder="Search routes..."
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -127,7 +128,7 @@ export default function Routes() {
             {/* Environment Filter */}
             <div>
               <select
-                className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 value={environmentFilter}
                 onChange={(e) => setEnvironmentFilter(e.target.value)}
               >
@@ -143,7 +144,7 @@ export default function Routes() {
             {/* Status Filter */}
             <div>
               <select
-                className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
@@ -157,19 +158,19 @@ export default function Routes() {
       </div>
 
       {/* Data Table */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+      <div className="bg-card border rounded-lg shadow-sm overflow-hidden">
         {loading ? (
           <div className="px-4 py-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-sm text-gray-500">Loading routes...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-2 text-sm text-muted-foreground">Loading routes...</p>
           </div>
         ) : error ? (
           <div className="px-4 py-12 text-center">
-            <XCircleIcon className="h-8 w-8 text-red-500 mx-auto" />
-            <p className="mt-2 text-sm text-red-600">Error: {error}</p>
+            <XCircleIcon className="h-8 w-8 text-destructive mx-auto" />
+            <p className="mt-2 text-sm text-destructive">Error: {error}</p>
             <button
               onClick={refetch}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-500"
+              className="mt-2 text-sm text-primary hover:text-primary/80"
             >
               Try again
             </button>
@@ -177,22 +178,22 @@ export default function Routes() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-muted/50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Name & Path
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Upstream → Downstream
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Environment
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Updated
                     </th>
                     <th className="relative px-6 py-3">
@@ -200,7 +201,7 @@ export default function Routes() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-background divide-y divide-border">
                   {filteredRoutes.map((route) => (
                     <tr key={route.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">

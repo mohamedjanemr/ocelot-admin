@@ -30,27 +30,27 @@ public class ConfigurationHub : Hub
     // Methods for broadcasting configuration changes
     public async Task NotifyRouteCreated(object routeData)
     {
-        await Clients.All.SendAsync("RouteCreated", routeData);
+        await Clients.All.SendAsync("RouteConfigCreated", routeData);
     }
 
     public async Task NotifyRouteUpdated(object routeData)
     {
-        await Clients.All.SendAsync("RouteUpdated", routeData);
+        await Clients.All.SendAsync("RouteConfigUpdated", routeData);
     }
 
     public async Task NotifyRouteDeleted(Guid routeId)
     {
-        await Clients.All.SendAsync("RouteDeleted", routeId);
+        await Clients.All.SendAsync("RouteConfigDeleted", routeId);
     }
 
     public async Task NotifyVersionCreated(object versionData)
     {
-        await Clients.All.SendAsync("VersionCreated", versionData);
+        await Clients.All.SendAsync("ConfigurationVersionCreated", versionData);
     }
 
     public async Task NotifyVersionActivated(object versionData)
     {
-        await Clients.All.SendAsync("VersionActivated", versionData);
+        await Clients.All.SendAsync("ConfigurationVersionActivated", versionData);
     }
 
     public async Task NotifyConfigurationChanged(object configurationData)

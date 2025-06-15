@@ -4,6 +4,9 @@ import { Toaster } from 'react-hot-toast';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import RoutesPage from './pages/Routes';
+import NewRoute from './pages/NewRoute';
+import ViewRoute from './pages/ViewRoute';
+import EditRoute from './pages/EditRoute';
 import { ErrorBoundary } from './components/ui/error-boundary';
 import './App.css';
 
@@ -16,6 +19,9 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/routes" element={<RoutesPage />} />
+              <Route path="/routes/new" element={<NewRoute />} />
+              <Route path="/routes/:id" element={<ViewRoute />} />
+              <Route path="/routes/:id/edit" element={<EditRoute />} />
               <Route path="/versions" element={<div className="p-6 text-center text-muted-foreground">Configuration Versions page coming soon...</div>} />
               <Route path="/health" element={<div className="p-6 text-center text-muted-foreground">System Health page coming soon...</div>} />
             </Routes>

@@ -40,12 +40,12 @@ builder.Services.SwaggerDocument(o =>
 // Add SignalR
 builder.Services.AddSignalR();
 
-// Add CORS
+// Add CORS - Fixed for SignalR compatibility
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:5174")
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -59,10 +59,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerGen();
 }
 
-// Enable CORS
-app.UseCors("AllowAll");
+// Enable CORS - Use the new policy name
+app.UseCors("AllowFrontend");
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 // Configure FastEndpoints
 app.UseFastEndpoints();

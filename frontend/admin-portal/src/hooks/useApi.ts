@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { handleApiError } from '../services/api';
 
 // Generic API hook for data fetching
@@ -9,19 +9,25 @@ export function useApi<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const apiCallRef = useRef(apiCall);
+  
+  // Update the ref when apiCall changes
+  useEffect(() => {
+    apiCallRef.current = apiCall;
+  }, [apiCall]);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await apiCall();
+      const result = await apiCallRef.current();
       setData(result);
     } catch (err) {
       setError(handleApiError(err));
     } finally {
       setLoading(false);
     }
-  }, [apiCall, ...dependencies]);
+  }, [...dependencies]);
 
   useEffect(() => {
     fetchData();
@@ -85,12 +91,18 @@ export function usePaginatedApi<T>(
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [totalCount, setTotalCount] = useState(0);
+  const apiCallRef = useRef(apiCall);
+
+  // Update the ref when apiCall changes
+  useEffect(() => {
+    apiCallRef.current = apiCall;
+  }, [apiCall]);
 
   const fetchData = useCallback(async (pageNum: number, size: number) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await apiCall(pageNum, size);
+      const result = await apiCallRef.current(pageNum, size);
       setData(result.items);
       setTotalCount(result.totalCount);
     } catch (err) {
@@ -98,7 +110,7 @@ export function usePaginatedApi<T>(
     } finally {
       setLoading(false);
     }
-  }, [apiCall]);
+  }, []);
 
   useEffect(() => {
     fetchData(page, pageSize);

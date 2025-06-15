@@ -48,11 +48,15 @@ apiClient.interceptors.response.use(
 // Route Configuration API
 export const routeConfigApi = {
   // Get all route configurations
-  getAll: async (page: number = 1, pageSize: number = 10): Promise<RouteConfigResponse> => {
+  getAll: async (page: number = 1, pageSize: number = 10): Promise<{ items: RouteConfig[]; totalCount: number }> => {
     const response: AxiosResponse<RouteConfigResponse> = await apiClient.get(
       `/api/route-configs?page=${page}&pageSize=${pageSize}`
     );
-    return response.data;
+    // Transform the response to match what usePaginatedApi expects
+    return {
+      items: response.data.routeConfigs || [],
+      totalCount: response.data.totalCount || 0
+    };
   },
 
   // Get route configuration by ID
@@ -90,11 +94,15 @@ export const routeConfigApi = {
 // Configuration Version API
 export const configurationVersionApi = {
   // Get all configuration versions
-  getAll: async (page: number = 1, pageSize: number = 10): Promise<ConfigurationVersionResponse> => {
+  getAll: async (page: number = 1, pageSize: number = 10): Promise<{ items: ConfigurationVersion[]; totalCount: number }> => {
     const response: AxiosResponse<ConfigurationVersionResponse> = await apiClient.get(
       `/api/configuration-versions?page=${page}&pageSize=${pageSize}`
     );
-    return response.data;
+    // Transform the response to match what usePaginatedApi expects
+    return {
+      items: response.data.configurationVersions || [],
+      totalCount: response.data.totalCount || 0
+    };
   },
 
   // Get configuration version by ID

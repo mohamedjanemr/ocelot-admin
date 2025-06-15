@@ -2,32 +2,61 @@ import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signal
 import type { SignalRNotification } from '../types';
 
 // SignalR Configuration
-const SIGNALR_HUB_URL = import.meta.env.VITE_SIGNALR_HUB_URL || 'http://localhost:5001/configurationHub';
+const SIGNALR_HUB_URL = import.meta.env.VITE_SIGNALR_HUB_URL || 'http://localhost:5000/configurationHub';
 
 class SignalRService {
   private connection: HubConnection | null = null;
   private listeners: Map<string, ((notification: SignalRNotification) => void)[]> = new Map();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
 
   // Initialize SignalR connection
   async initialize(): Promise<void> {
-    if (this.connection) {
+    if (this.connection?.state === 'Connected') {
+      console.log('✅ SignalR already connected');
       return;
     }
 
-    this.connection = new HubConnectionBuilder()
-      .withUrl(SIGNALR_HUB_URL)
-      .withAutomaticReconnect([0, 2000, 10000, 30000]) // Retry after 0, 2, 10, 30 seconds
-      .configureLogging(LogLevel.Information)
-      .build();
+    if (this.connection?.state === 'Connecting') {
+      console.log('⏳ SignalR already connecting, waiting...');
+      return;
+    }
 
-    // Set up event handlers
-    this.setupEventHandlers();
+    console.log(`🔄 Initializing SignalR connection to: ${SIGNALR_HUB_URL}`);
 
     try {
+      // Stop existing connection if any
+      if (this.connection) {
+        await this.connection.stop();
+      }
+
+      this.connection = new HubConnectionBuilder()
+        .withUrl(SIGNALR_HUB_URL, {
+          withCredentials: false,
+          skipNegotiation: false,
+        })
+        .withAutomaticReconnect([0, 2000, 10000, 30000])
+        .configureLogging(LogLevel.Information)
+        .build();
+
+      // Set up event handlers
+      this.setupEventHandlers();
+
       await this.connection.start();
-      console.log('✅ SignalR connection established');
+      this.reconnectAttempts = 0;
+      console.log('✅ SignalR connection established successfully');
+
     } catch (error) {
-      console.error('❌ SignalR connection failed:', error);
+      this.reconnectAttempts++;
+      console.error(`❌ SignalR connection failed (attempt ${this.reconnectAttempts}):`, error);
+      
+      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+        console.log(`🔄 Retrying SignalR connection in 5 seconds...`);
+        setTimeout(() => this.initialize(), 5000);
+      } else {
+        console.error('❌ Max reconnection attempts reached. SignalR connection failed permanently.');
+      }
+      
       throw error;
     }
   }
@@ -36,21 +65,27 @@ class SignalRService {
   private setupEventHandlers(): void {
     if (!this.connection) return;
 
+    console.log('🔧 Setting up SignalR event handlers');
+
     // Route Configuration Events
     this.connection.on('RouteConfigCreated', (data: Record<string, unknown>) => {
+      console.log('📩 Received: RouteConfigCreated', data);
       this.notifyListeners('RouteConfigCreated', data);
     });
 
     this.connection.on('RouteConfigUpdated', (data: Record<string, unknown>) => {
+      console.log('📩 Received: RouteConfigUpdated', data);
       this.notifyListeners('RouteConfigUpdated', data);
     });
 
     this.connection.on('RouteConfigDeleted', (data: Record<string, unknown>) => {
+      console.log('📩 Received: RouteConfigDeleted', data);
       this.notifyListeners('RouteConfigDeleted', data);
     });
 
     // Configuration Version Events
     this.connection.on('ConfigurationVersionActivated', (data: Record<string, unknown>) => {
+      console.log('📩 Received: ConfigurationVersionActivated', data);
       this.notifyListeners('ConfigurationVersionActivated', data);
     });
 

@@ -35,6 +35,7 @@ namespace OcelotGateway.Domain.Entities
             IsActive = false;
             CreatedAt = DateTime.UtcNow;
             CreatedBy = createdBy ?? "System";
+            PublishedBy = createdBy ?? "System";
             RouteConfigurations = new List<RouteConfig>();
         }
 

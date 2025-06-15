@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import {
   Activity,
   ArrowUpRight,
@@ -21,8 +22,11 @@ import { useApi } from '../hooks/useApi';
 import { healthApi, routeConfigApi } from '../services/api';
 
 export default function Dashboard() {
-  const { data: healthData, loading: healthLoading, error: healthError } = useApi(() => healthApi.getHealth());
-  const { data: routesData, loading: routesLoading, error: routesError } = useApi(() => routeConfigApi.getAll(1, 5));
+  const healthApiCall = useCallback(() => healthApi.getHealth(), []);
+  const routesApiCall = useCallback(() => routeConfigApi.getAll(1, 5), []);
+  
+  const { data: healthData, loading: healthLoading, error: healthError } = useApi(healthApiCall);
+  const { data: routesData, loading: routesLoading, error: routesError } = useApi(routesApiCall);
 
   if (healthLoading && routesLoading) {
     return (
