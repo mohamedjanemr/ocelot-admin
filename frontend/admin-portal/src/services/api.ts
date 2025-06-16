@@ -61,10 +61,10 @@ export const routeConfigApi = {
 
   // Get route configuration by ID
   getById: async (id: string): Promise<RouteConfig> => {
-    const response: AxiosResponse<{ routeConfig: RouteConfig }> = await apiClient.get(
+    const response: AxiosResponse<RouteConfig> = await apiClient.get(
       `/api/route-configs/${id}`
     );
-    return response.data.routeConfig;
+    return response.data;
   },
 
   // Create new route configuration
@@ -78,11 +78,11 @@ export const routeConfigApi = {
 
   // Update route configuration
   update: async (id: string, routeConfig: UpdateRouteConfig): Promise<RouteConfig> => {
-    const response: AxiosResponse<{ routeConfig: RouteConfig }> = await apiClient.put(
+    const response: AxiosResponse<RouteConfig> = await apiClient.put(
       `/api/route-configs/${id}`,
       routeConfig
     );
-    return response.data.routeConfig;
+    return response.data;
   },
 
   // Delete route configuration
