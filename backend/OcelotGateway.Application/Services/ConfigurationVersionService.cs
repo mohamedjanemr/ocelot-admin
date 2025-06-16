@@ -1,9 +1,7 @@
-using Microsoft.AspNetCore.SignalR; // Added for SignalR
 using OcelotGateway.Application.DTOs;
 using OcelotGateway.Application.Interfaces;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.Interfaces;
-using OcelotGateway.WebApi.Hubs; // Added for ConfigurationHub
 using System.Text.Json;
 
 namespace OcelotGateway.Application.Services;
@@ -12,16 +10,13 @@ public class ConfigurationVersionService : IConfigurationVersionService
 {
     private readonly IConfigurationVersionRepository _versionRepository;
     private readonly IRouteConfigRepository _routeRepository;
-    private readonly IHubContext<ConfigurationHub> _hubContext; // Added for SignalR
 
     public ConfigurationVersionService(
         IConfigurationVersionRepository versionRepository,
-        IRouteConfigRepository routeRepository,
-        IHubContext<ConfigurationHub> hubContext) // Added hubContext
+        IRouteConfigRepository routeRepository)
     {
         _versionRepository = versionRepository;
         _routeRepository = routeRepository;
-        _hubContext = hubContext; // Added for SignalR
     }
 
     public async Task<IEnumerable<ConfigurationVersionDto>> GetAllVersionsAsync()
@@ -66,7 +61,7 @@ public class ConfigurationVersionService : IConfigurationVersionService
     {
         var version = new ConfigurationVersion(
             createDto.Version,
-            createDto.Description,
+            createDto.Description ?? string.Empty,
             createDto.Environment,
             createdBy);
 
@@ -93,8 +88,6 @@ public class ConfigurationVersionService : IConfigurationVersionService
         }
 
         await _versionRepository.AddAsync(version);
-        // Send SignalR notification
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = version.Environment, Type = "VersionCreated", Version = version.Version, Timestamp = DateTime.UtcNow });
         return MapToDto(version);
     }
 
@@ -109,15 +102,11 @@ public class ConfigurationVersionService : IConfigurationVersionService
         {
             currentActive.Unpublish();
             await _versionRepository.UpdateAsync(currentActive);
-            // Send SignalR notification for the old version being unpublished
-            await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = currentActive.Environment, Type = "VersionUnpublished", Version = currentActive.Version, Timestamp = DateTime.UtcNow });
         }
 
         // Publish new version
         versionToPublish.Publish(publishedBy);
         await _versionRepository.UpdateAsync(versionToPublish);
-        // Send SignalR notification for the new version being published
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = versionToPublish.Environment, Type = "VersionPublished", Version = versionToPublish.Version, Timestamp = DateTime.UtcNow });
 
         return true;
     }
@@ -129,8 +118,6 @@ public class ConfigurationVersionService : IConfigurationVersionService
 
         versionToUnpublish.Unpublish();
         await _versionRepository.UpdateAsync(versionToUnpublish);
-        // Send SignalR notification
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = versionToUnpublish.Environment, Type = "VersionUnpublished", Version = versionToUnpublish.Version, Timestamp = DateTime.UtcNow });
         return true;
     }
 
@@ -146,8 +133,6 @@ public class ConfigurationVersionService : IConfigurationVersionService
         var deletedVersionNumber = versionToDelete.Version;
 
         await _versionRepository.DeleteAsync(id);
-        // Send SignalR notification
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = deletedVersionEnvironment, Type = "VersionDeleted", Version = deletedVersionNumber, Timestamp = DateTime.UtcNow });
         return true;
     }
 

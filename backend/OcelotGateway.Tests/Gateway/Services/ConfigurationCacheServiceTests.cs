@@ -86,7 +86,7 @@ namespace OcelotGateway.Tests.Gateway.Services
             // Assert
             Assert.NotNull(fileConfig);
             Assert.Equal(seededVersion.RouteConfigurations.Count, fileConfig.Routes.Count);
-            Assert.Equal(seededVersion.RouteConfigurations.First().Name, fileConfig.Routes.First().Name);
+            Assert.Equal(seededVersion.RouteConfigurations.First().UpstreamPathTemplate, fileConfig.Routes.First().UpstreamPathTemplate);
 
             // Check if it's in cache now by trying to get it again
             // A true "Same" check might not work if a new object is constructed from cache.
@@ -95,7 +95,7 @@ namespace OcelotGateway.Tests.Gateway.Services
             var cachedConfig = await _cacheService.GetConfigurationAsync(environment);
             Assert.NotNull(cachedConfig);
             Assert.Equal(fileConfig.Routes.Count, cachedConfig.Routes.Count);
-            Assert.Equal(fileConfig.Routes.First().Name, cachedConfig.Routes.First().Name);
+            Assert.Equal(fileConfig.Routes.First().UpstreamPathTemplate, cachedConfig.Routes.First().UpstreamPathTemplate);
 
             // To be more certain it's cached, we could try to retrieve the item from IMemoryCache directly.
             var cacheKey = $"{environment}_ocelot_config";
@@ -114,7 +114,7 @@ namespace OcelotGateway.Tests.Gateway.Services
             var initialConfig = await _cacheService.GetConfigurationAsync(environment);
             Assert.NotNull(initialConfig);
             Assert.Single(initialConfig.Routes);
-            Assert.Equal(initialVersion.RouteConfigurations.First().Name, initialConfig.Routes.First().Name);
+            Assert.Equal(initialVersion.RouteConfigurations.First().UpstreamPathTemplate, initialConfig.Routes.First().UpstreamPathTemplate);
 
             // Modify data in DB *after* caching.
             // Add a new route to the existing version, or create a new active version.
@@ -128,7 +128,7 @@ namespace OcelotGateway.Tests.Gateway.Services
             Assert.NotNull(cachedConfig);
             // Crucially, it should still have the count from the *initial* caching, not the updated DB.
             Assert.Single(cachedConfig.Routes);
-            Assert.Equal(initialVersion.RouteConfigurations.First().Name, cachedConfig.Routes.First().Name);
+            Assert.Equal(initialVersion.RouteConfigurations.First().UpstreamPathTemplate, cachedConfig.Routes.First().UpstreamPathTemplate);
         }
 
         [Fact]
@@ -146,7 +146,15 @@ namespace OcelotGateway.Tests.Gateway.Services
             // Act: Invalidate cache
             _cacheService.InvalidateCache(environment);
 
-            // Modify data in DB - e.g., a new version is now active with different routes
+            // Modify data in DB - first deactivate the existing version, then create a new one
+            var existingActiveVersions = await _configVersionRepository.GetByEnvironmentAsync(environment);
+            foreach (var existingVersion in existingActiveVersions.Where(v => v.IsActive))
+            {
+                existingVersion.Unpublish();
+                await _configVersionRepository.UpdateAsync(existingVersion);
+            }
+            
+            // Create a new version with 2 routes
             await SeedActiveVersionWithRoutesAsync(environment, 2, "1.0.1"); // Version 1.0.1 with 2 routes now active
 
             // Act: Get configuration again after invalidation

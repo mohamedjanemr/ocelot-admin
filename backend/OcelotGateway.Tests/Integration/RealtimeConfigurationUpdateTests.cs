@@ -18,7 +18,7 @@ namespace OcelotGateway.Tests.Integration
     {
         private SqliteConnection? _sharedConnection;
 
-        private CustomWebApplicationFactory<OcelotGateway.WebApi.Program>? _webApiFactory;
+        private CustomWebApplicationFactory<IWebApiMarker>? _webApiFactory;
         private GatewayWebApplicationFactory? _gatewayFactory;
 
         private HttpClient? _webApiClient;
@@ -43,7 +43,7 @@ namespace OcelotGateway.Tests.Integration
                 await context.Database.EnsureCreatedAsync();
             }
 
-            _webApiFactory = new CustomWebApplicationFactory<OcelotGateway.WebApi.Program>(_sharedConnection);
+            _webApiFactory = new CustomWebApplicationFactory<IWebApiMarker>(_sharedConnection);
 
             var tempWebApiClient = _webApiFactory.CreateClient(); // Create client to start the server and get BaseAddress
             var webApiBaseAddress = tempWebApiClient.BaseAddress?.ToString() ?? "http://localhost:5000"; // Fallback

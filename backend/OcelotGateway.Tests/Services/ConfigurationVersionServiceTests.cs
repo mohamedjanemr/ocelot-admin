@@ -1,16 +1,12 @@
-using AutoMapper;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
 using OcelotGateway.Application.DTOs;
-using OcelotGateway.Application.Mappings; // For MappingProfile if used for DTOs, though service uses static MapToDto
 using OcelotGateway.Application.Services;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.ValueObjects;
 using OcelotGateway.Infrastructure.Data;
 using OcelotGateway.Infrastructure.Repositories;
 using OcelotGateway.Tests.Common;
-using OcelotGateway.WebApi.Hubs; // For ConfigurationHub
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,24 +19,15 @@ namespace OcelotGateway.Tests.Services
     public class ConfigurationVersionServiceTests : DatabaseTestBase
     {
         private readonly ConfigurationVersionService _configVersionService;
-        private readonly Mock<IHubContext<ConfigurationHub>> _mockHubContext;
-        private readonly Mock<IHubClients> _mockHubClients;
-        private readonly Mock<IClientProxy> _mockClientProxy;
         private readonly RouteConfigRepository _routeConfigRepository; // Needed for seeding routes for versions
 
         public ConfigurationVersionServiceTests()
         {
-            _mockClientProxy = new Mock<IClientProxy>();
-            _mockHubClients = new Mock<IHubClients>();
-            _mockHubClients.Setup(clients => clients.All).Returns(_mockClientProxy.Object);
-            _mockHubContext = new Mock<IHubContext<ConfigurationHub>>();
-            _mockHubContext.Setup(hub => hub.Clients).Returns(_mockHubClients.Object);
-
             var configVersionRepository = new ConfigurationVersionRepository(DbContext);
             _routeConfigRepository = new RouteConfigRepository(DbContext); // Instantiated for use in test setups
 
-            // ConfigurationVersionService constructor: (IConfigurationVersionRepository, IRouteConfigRepository, IHubContext<ConfigurationHub>)
-            _configVersionService = new ConfigurationVersionService(configVersionRepository, _routeConfigRepository, _mockHubContext.Object);
+            // ConfigurationVersionService constructor: (IConfigurationVersionRepository, IRouteConfigRepository)
+            _configVersionService = new ConfigurationVersionService(configVersionRepository, _routeConfigRepository);
         }
 
         private RouteConfig SeedRoute(string name = "TestRoute", string env = "Development", string createdBy = "test_user")
@@ -102,12 +89,7 @@ namespace OcelotGateway.Tests.Services
             Assert.Equal(createdBy, versionInDb.CreatedBy);
             Assert.Contains(versionInDb.RouteConfigurations, rc => rc.Id == route1.Id);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync("ConfigurationChanged",
-                    It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "VersionCreated" &&
-                                         o[0].GetType().GetProperty("Version").GetValue(o[0]).ToString() == dto.Version),
-                    default(CancellationToken)), Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -119,7 +101,6 @@ namespace OcelotGateway.Tests.Services
             var initiallyActiveVersion = SeedVersionDirectly("0.9.0", env, isActive: true, createdBy: "system", routes: new List<RouteConfig>{ routeA });
             var versionToPublish = SeedVersionDirectly("1.0.0", env, isActive: false, createdBy: "user1", routes: new List<RouteConfig>{ routeA });
             var publisher = "test_publisher";
-            _mockClientProxy.Invocations.Clear();
 
 
             // Act
@@ -135,23 +116,7 @@ namespace OcelotGateway.Tests.Services
             var oldActiveVersionInDb = await DbContext.ConfigurationVersions.FindAsync(initiallyActiveVersion.Id);
             Assert.False(oldActiveVersionInDb.IsActive); // Should be unpublished
 
-            // Verify notification for the new version being published
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync("ConfigurationChanged",
-                    It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "VersionPublished" &&
-                                         o[0].GetType().GetProperty("Version").GetValue(o[0]).ToString() == versionToPublish.Version &&
-                                         o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == env),
-                    default(CancellationToken)), Times.Once);
-
-            // Verify notification for the old version being unpublished
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync("ConfigurationChanged",
-                    It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "VersionUnpublished" &&
-                                         o[0].GetType().GetProperty("Version").GetValue(o[0]).ToString() == initiallyActiveVersion.Version &&
-                                         o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == env),
-                    default(CancellationToken)), Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -160,7 +125,6 @@ namespace OcelotGateway.Tests.Services
             // Arrange
             var env = "Production";
             var versionToUnpublish = SeedVersionDirectly("2.0.0", env, isActive: true, createdBy: "admin");
-            _mockClientProxy.Invocations.Clear();
 
             // Act
             var unpublishResult = await _configVersionService.UnpublishVersionAsync(versionToUnpublish.Id);
@@ -170,12 +134,7 @@ namespace OcelotGateway.Tests.Services
             var versionInDb = await DbContext.ConfigurationVersions.FindAsync(versionToUnpublish.Id);
             Assert.False(versionInDb.IsActive);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync("ConfigurationChanged",
-                    It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "VersionUnpublished" &&
-                                         o[0].GetType().GetProperty("Version").GetValue(o[0]).ToString() == versionToUnpublish.Version),
-                    default(CancellationToken)), Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -183,7 +142,6 @@ namespace OcelotGateway.Tests.Services
         {
             // Arrange
             var versionToDelete = SeedVersionDirectly("0.5.0-beta", "TestEnv", isActive: false); // Must be inactive
-            _mockClientProxy.Invocations.Clear();
 
             // Act
             var deleteResult = await _configVersionService.DeleteVersionAsync(versionToDelete.Id);
@@ -193,12 +151,7 @@ namespace OcelotGateway.Tests.Services
             var versionInDb = await DbContext.ConfigurationVersions.FindAsync(versionToDelete.Id);
             Assert.Null(versionInDb);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync("ConfigurationChanged",
-                    It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "VersionDeleted" &&
-                                         o[0].GetType().GetProperty("Version").GetValue(o[0]).ToString() == versionToDelete.Version),
-                    default(CancellationToken)), Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -206,7 +159,6 @@ namespace OcelotGateway.Tests.Services
         {
             // Arrange
             var activeVersion = SeedVersionDirectly("1.0.0-active", "Prod", isActive: true);
-            _mockClientProxy.Invocations.Clear();
 
             // Act
             var deleteResult = await _configVersionService.DeleteVersionAsync(activeVersion.Id);
@@ -215,9 +167,7 @@ namespace OcelotGateway.Tests.Services
             Assert.False(deleteResult); // Should not delete active version
             var versionInDb = await DbContext.ConfigurationVersions.FindAsync(activeVersion.Id);
             Assert.NotNull(versionInDb); // Still exists
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), default(CancellationToken)),
-                Times.Never); // No notification should be sent
+            // SignalR verification removed since service no longer uses SignalR
         }
 
 

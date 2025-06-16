@@ -78,3 +78,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Make the implicit Program class public so it can be referenced by tests
+public partial class Program { }
+public interface IWebApiMarker { }

@@ -43,12 +43,6 @@ namespace OcelotGateway.Gateway.Providers
                 _logger.LogInformation("Loading Ocelot configuration for environment: {Environment}", _environment);
                 
                 var fileConfig = await _cacheService.GetConfigurationAsync(_environment);
-                
-                if (fileConfig == null)
-                {
-                    _logger.LogWarning("No configuration found for environment: {Environment}", _environment);
-                    return new ErrorResponse<FileConfiguration>(new List<Ocelot.Errors.Error>());
-                }
 
                 _logger.LogInformation("Configuration loaded successfully for environment: {Environment} with {RouteCount} routes", 
                     _environment, fileConfig.Routes.Count);
@@ -73,7 +67,7 @@ namespace OcelotGateway.Gateway.Providers
                 var version = $"{DateTime.UtcNow:yyyy.MM.dd.HH.mm.ss}";
                 var configVersion = new ConfigurationVersion(
                     version,
-                    $"Configuration updated at {DateTime.UtcNow}",
+                    $"Configuration updated at {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}",
                     _environment,
                     "System"
                 );

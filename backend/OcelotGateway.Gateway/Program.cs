@@ -134,4 +134,8 @@ static async Task SeedDefaultConfigurationAsync(IServiceProvider serviceProvider
     await configRepository.UpdateAsync(configVersion);
     
     Log.Information("Default configuration seeded for environment: {Environment}", environment);
-} 
+}
+
+// Make the implicit Program class public so it can be referenced by tests
+public partial class Program { } 
+public interface IGatewayMarker{}

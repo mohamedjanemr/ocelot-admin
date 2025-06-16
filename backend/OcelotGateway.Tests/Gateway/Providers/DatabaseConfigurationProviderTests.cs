@@ -164,7 +164,7 @@ namespace OcelotGateway.Tests.Gateway.Providers
                 {
                     new FileRoute
                     {
-                        Name = "NewRouteFromSet",
+                        // Name property removed in Ocelot 24.0.0
                         UpstreamPathTemplate = "/set/route1",
                         UpstreamHttpMethod = new List<string> { "GET" },
                         DownstreamPathTemplate = "/down/set1",
@@ -195,7 +195,7 @@ namespace OcelotGateway.Tests.Gateway.Providers
 
             Assert.Single(activeConfigs.RouteConfigurations);
             var savedRoute = activeConfigs.RouteConfigurations.First();
-            Assert.Equal(fileConfigToSet.Routes.First().Name, savedRoute.Name);
+            // Name property comparison removed since FileRoute.Name doesn't exist in Ocelot 24.0.0
             Assert.Equal(fileConfigToSet.Routes.First().UpstreamPathTemplate, savedRoute.UpstreamPathTemplate);
 
             // Verify old version is deactivated

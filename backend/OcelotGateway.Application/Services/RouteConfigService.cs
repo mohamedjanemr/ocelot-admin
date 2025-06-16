@@ -1,22 +1,18 @@
-using Microsoft.AspNetCore.SignalR; // Added for SignalR
 using OcelotGateway.Application.DTOs;
 using OcelotGateway.Application.Interfaces;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.Interfaces;
 using OcelotGateway.Domain.ValueObjects;
-using OcelotGateway.WebApi.Hubs; // Added for ConfigurationHub
 
 namespace OcelotGateway.Application.Services;
 
 public class RouteConfigService : IRouteConfigService
 {
     private readonly IRouteConfigRepository _routeConfigRepository;
-    private readonly IHubContext<ConfigurationHub> _hubContext; // Added for SignalR
 
-    public RouteConfigService(IRouteConfigRepository routeConfigRepository, IHubContext<ConfigurationHub> hubContext) // Added hubContext
+    public RouteConfigService(IRouteConfigRepository routeConfigRepository)
     {
         _routeConfigRepository = routeConfigRepository;
-        _hubContext = hubContext; // Added for SignalR
     }
 
     public async Task<IEnumerable<RouteConfigDto>> GetAllRoutesAsync()
@@ -70,8 +66,6 @@ public class RouteConfigService : IRouteConfigService
             route.SetQoSOptions(createDto.QoSOptions);
 
         await _routeConfigRepository.AddAsync(route);
-        // Send SignalR notification
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = route.Environment, Type = "RouteCreated", RouteName = route.Name, Timestamp = DateTime.UtcNow });
         return MapToDto(route);
     }
 
@@ -82,7 +76,7 @@ public class RouteConfigService : IRouteConfigService
 
         var hostAndPorts = updateDto.DownstreamHostAndPorts.Select(h => new HostAndPort(h.Host, h.Port)).ToList();
 
-        route.Update(
+        routeToUpdate.Update(
             updateDto.Name,
             updateDto.DownstreamPathTemplate,
             updateDto.UpstreamPathTemplate,
@@ -93,19 +87,17 @@ public class RouteConfigService : IRouteConfigService
 
         // Update optional properties
         if (!string.IsNullOrEmpty(updateDto.ServiceName))
-            route.SetServiceName(updateDto.ServiceName);
+            routeToUpdate.SetServiceName(updateDto.ServiceName);
         if (!string.IsNullOrEmpty(updateDto.LoadBalancerOptions))
-            route.SetLoadBalancerOptions(updateDto.LoadBalancerOptions);
+            routeToUpdate.SetLoadBalancerOptions(updateDto.LoadBalancerOptions);
         if (!string.IsNullOrEmpty(updateDto.AuthenticationOptions))
-            route.SetAuthenticationOptions(updateDto.AuthenticationOptions);
+            routeToUpdate.SetAuthenticationOptions(updateDto.AuthenticationOptions);
         if (!string.IsNullOrEmpty(updateDto.RateLimitOptions))
-            route.SetRateLimitOptions(updateDto.RateLimitOptions);
+            routeToUpdate.SetRateLimitOptions(updateDto.RateLimitOptions);
         if (!string.IsNullOrEmpty(updateDto.QoSOptions))
             routeToUpdate.SetQoSOptions(updateDto.QoSOptions);
 
         await _routeConfigRepository.UpdateAsync(routeToUpdate);
-        // Send SignalR notification
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = routeToUpdate.Environment, Type = "RouteUpdated", RouteName = routeToUpdate.Name, Timestamp = DateTime.UtcNow });
         return MapToDto(routeToUpdate);
     }
 
@@ -118,8 +110,6 @@ public class RouteConfigService : IRouteConfigService
         var deletedRouteName = routeToDelete.Name; // Capture name for notification
 
         await _routeConfigRepository.DeleteAsync(id);
-        // Send SignalR notification
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = deletedRouteEnvironment, Type = "RouteDeleted", RouteName = deletedRouteName, Timestamp = DateTime.UtcNow });
         return true;
     }
 
@@ -134,8 +124,6 @@ public class RouteConfigService : IRouteConfigService
             routeToToggle.Deactivate();
 
         await _routeConfigRepository.UpdateAsync(routeToToggle);
-        // Send SignalR notification for status change
-        await _hubContext.Clients.All.SendAsync("ConfigurationChanged", new { Environment = routeToToggle.Environment, Type = "RouteStatusChanged", RouteName = routeToToggle.Name, IsActive = isActive, Timestamp = DateTime.UtcNow });
         return true;
     }
 

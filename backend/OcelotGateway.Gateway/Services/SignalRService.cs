@@ -99,41 +99,18 @@ namespace OcelotGateway.Gateway.Services
             }
         }
 
-        private async void InvalidateCacheAndReloadConfiguration()
+        private void InvalidateCacheAndReloadConfiguration()
         {
-            _logger.LogInformation("SignalR: Invalidating Ocelot cache and reloading configuration due to notification.");
-
-            _fileConfigurationCache.Clear();
-            _logger.LogInformation("Ocelot cache cleared. Ocelot should reload configuration on next request or poll.");
+            _logger.LogInformation("SignalR: Invalidating Ocelot cache due to configuration change notification.");
 
             try
             {
-                using (var scope = _serviceProvider.CreateScope())
-                {
-                    var internalConfigRepo = scope.ServiceProvider.GetService<IInternalConfigurationRepository>();
-                    var ocelotFileConfig = await _fileConfigurationRepository.Get();
-
-                    if (ocelotFileConfig?.Data != null && internalConfigRepo != null)
-                    {
-                        var setResult = internalConfigRepo.Set(ocelotFileConfig.Data);
-                        if (setResult.IsError)
-                        {
-                            _logger.LogError("SignalR: Error setting Ocelot internal configuration after cache clear: {Errors}", string.Join(", ", setResult.Errors.Select(e => e.Message)));
-                        }
-                        else
-                        {
-                            _logger.LogInformation("SignalR: Successfully updated Ocelot internal configuration via IInternalConfigurationRepository after cache clear.");
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("SignalR: Could not retrieve FileConfiguration from DB or IInternalConfigurationRepository not found, during proactive reload.");
-                    }
-                }
+                _fileConfigurationCache.ClearRegion(".*");
+                _logger.LogInformation("Ocelot cache cleared. Ocelot will reload configuration on next request.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "SignalR: Exception during proactive Ocelot internal configuration update.");
+                _logger.LogError(ex, "SignalR: Exception during cache invalidation.");
             }
         }
 

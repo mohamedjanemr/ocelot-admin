@@ -13,7 +13,7 @@ using System.Linq;
 
 namespace OcelotGateway.Tests.Factories
 {
-    public class GatewayWebApplicationFactory : WebApplicationFactory<OcelotGateway.Gateway.Program>
+    public class GatewayWebApplicationFactory : WebApplicationFactory<IGatewayMarker>
     {
         private readonly DbConnection? _dbConnection;
         private readonly string? _signalRHubUrl;

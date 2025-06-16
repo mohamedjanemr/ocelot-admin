@@ -1,16 +1,12 @@
-using AutoMapper;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Moq;
 using OcelotGateway.Application.DTOs;
 using OcelotGateway.Application.Interfaces;
-using OcelotGateway.Application.Mappings; // Assuming MappingProfile is here
 using OcelotGateway.Application.Services;
 using OcelotGateway.Domain.Entities;
 using OcelotGateway.Domain.ValueObjects;
 using OcelotGateway.Infrastructure.Repositories;
 using OcelotGateway.Tests.Common;
-using OcelotGateway.WebApi.Hubs; // For ConfigurationHub
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,36 +19,15 @@ namespace OcelotGateway.Tests.Services
     public class RouteConfigServiceTests : DatabaseTestBase // Inherits from DatabaseTestBase for DbContext
     {
         private readonly RouteConfigService _routeConfigService;
-        private readonly Mock<IHubContext<ConfigurationHub>> _mockHubContext;
-        private readonly Mock<IHubClients> _mockHubClients;
-        private readonly Mock<IClientProxy> _mockClientProxy;
-        // IMapper is not injected into RouteConfigService, it uses a static MapToDto method.
 
         public RouteConfigServiceTests()
         {
-            // 1. Setup Mocks for SignalR
-            _mockClientProxy = new Mock<IClientProxy>();
-            _mockHubClients = new Mock<IHubClients>();
-            _mockHubClients.Setup(clients => clients.All).Returns(_mockClientProxy.Object);
-            _mockHubContext = new Mock<IHubContext<ConfigurationHub>>();
-            _mockHubContext.Setup(hub => hub.Clients).Returns(_mockHubClients.Object);
 
-            // 2. Setup AutoMapper - Not strictly needed for service instantiation if not injected,
-            // but good for verifying DTO mapping if the service returns DTOs created by AutoMapper.
-            // RouteConfigService uses a static MapToDto, so an IMapper instance isn't passed to its constructor.
-            // var mapperConfig = new MapperConfiguration(cfg =>
-            // {
-            //     cfg.AddProfile<MappingProfile>();
-            // });
-            // _mapper = mapperConfig.CreateMapper();
-
-
-            // 3. Setup Repository
+            // Setup Repository
             var routeRepository = new RouteConfigRepository(DbContext); // DbContext comes from DatabaseTestBase
 
-            // 4. Instantiate the Service
-            // Based on previous steps, RouteConfigService constructor takes (IRouteConfigRepository, IHubContext<ConfigurationHub>)
-            _routeConfigService = new RouteConfigService(routeRepository, _mockHubContext.Object);
+            // Instantiate the Service (no longer takes SignalR hub context)
+            _routeConfigService = new RouteConfigService(routeRepository);
         }
 
         private CreateRouteConfigDto CreateSampleRouteDto(string name = "TestRoute", string env = "Development", bool isActive = true)
@@ -91,7 +66,7 @@ namespace OcelotGateway.Tests.Services
 
 
         [Fact]
-        public async Task CreateRouteAsync_ShouldSaveToDatabaseAndNotifyHub()
+        public async Task CreateRouteAsync_ShldSaveToDatabaseAndNotifyHub()
         {
             // Arrange
             var dto = CreateSampleRouteDto();
@@ -111,15 +86,7 @@ namespace OcelotGateway.Tests.Services
             Assert.Equal(dto.Environment, routeInDb.Environment);
             Assert.True(routeInDb.IsActive); // Default should be active
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync(
-                    "ConfigurationChanged",
-                    It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                         o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteCreated" &&
-                                         o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == dto.Name &&
-                                         o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == dto.Environment),
-                    default(CancellationToken)),
-                Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -127,7 +94,6 @@ namespace OcelotGateway.Tests.Services
         {
             // Arrange
             var initialEntity = SeedRouteDirectly("InitialRouteForUpdate");
-            _mockClientProxy.Invocations.Clear();
 
             var updateDto = new UpdateRouteConfigDto
             {
@@ -154,15 +120,7 @@ namespace OcelotGateway.Tests.Services
             Assert.Equal(updateDto.Name, routeInDb.Name);
             Assert.Equal(updatedBy, routeInDb.UpdatedBy);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync(
-                    "ConfigurationChanged",
-                     It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteUpdated" &&
-                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == updateDto.Name &&
-                                          o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == initialEntity.Environment),
-                    default(CancellationToken)),
-                Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -170,7 +128,6 @@ namespace OcelotGateway.Tests.Services
         {
             // Arrange
             var routeEntityToDelete = SeedRouteDirectly("RouteToDelete");
-            _mockClientProxy.Invocations.Clear();
 
             // Act
             var deleteResult = await _routeConfigService.DeleteRouteAsync(routeEntityToDelete.Id);
@@ -180,15 +137,7 @@ namespace OcelotGateway.Tests.Services
             var routeInDb = await DbContext.RouteConfigs.FindAsync(routeEntityToDelete.Id);
             Assert.Null(routeInDb);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync(
-                    "ConfigurationChanged",
-                     It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteDeleted" &&
-                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == routeEntityToDelete.Name &&
-                                          o[0].GetType().GetProperty("Environment").GetValue(o[0]).ToString() == routeEntityToDelete.Environment),
-                    default(CancellationToken)),
-                Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
 
         [Fact]
@@ -227,7 +176,6 @@ namespace OcelotGateway.Tests.Services
             // Arrange
             var routeEntity = SeedRouteDirectly("RouteToToggle", isActive: true);
             Assert.True(routeEntity.IsActive);
-            _mockClientProxy.Invocations.Clear();
 
             // Act: Deactivate
             var deactivateResult = await _routeConfigService.ToggleRouteStatusAsync(routeEntity.Id, false);
@@ -238,17 +186,8 @@ namespace OcelotGateway.Tests.Services
             Assert.NotNull(routeInDb);
             Assert.False(routeInDb.IsActive);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync(
-                    "ConfigurationChanged",
-                     It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteStatusChanged" &&
-                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == routeEntity.Name &&
-                                          (bool)o[0].GetType().GetProperty("IsActive").GetValue(o[0]) == false),
-                    default(CancellationToken)),
-                Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
 
-            _mockClientProxy.Invocations.Clear();
 
             // Act: Activate
             var activateResult = await _routeConfigService.ToggleRouteStatusAsync(routeEntity.Id, true);
@@ -259,15 +198,7 @@ namespace OcelotGateway.Tests.Services
             Assert.NotNull(routeInDb);
             Assert.True(routeInDb.IsActive);
 
-            _mockClientProxy.Verify(
-                c => c.SendCoreAsync(
-                    "ConfigurationChanged",
-                     It.Is<object[]>(o => o != null && o.Length == 1 &&
-                                          o[0].GetType().GetProperty("Type").GetValue(o[0]).ToString() == "RouteStatusChanged" &&
-                                          o[0].GetType().GetProperty("RouteName").GetValue(o[0]).ToString() == routeEntity.Name &&
-                                          (bool)o[0].GetType().GetProperty("IsActive").GetValue(o[0]) == true),
-                    default(CancellationToken)),
-                Times.Once);
+            // SignalR verification removed since service no longer uses SignalR
         }
     }
 }
