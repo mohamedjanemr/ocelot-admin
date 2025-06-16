@@ -71,12 +71,12 @@ public class RouteConfigService : IRouteConfigService
 
     public async Task<RouteConfigDto?> UpdateRouteAsync(Guid id, UpdateRouteConfigDto updateDto, string updatedBy)
     {
-        var route = await _routeConfigRepository.GetByIdAsync(id);
-        if (route == null) return null;
+        var routeToUpdate = await _routeConfigRepository.GetByIdAsync(id); // Renamed for clarity
+        if (routeToUpdate == null) return null;
 
         var hostAndPorts = updateDto.DownstreamHostAndPorts.Select(h => new HostAndPort(h.Host, h.Port)).ToList();
 
-        route.Update(
+        routeToUpdate.Update(
             updateDto.Name,
             updateDto.DownstreamPathTemplate,
             updateDto.UpstreamPathTemplate,
@@ -87,24 +87,27 @@ public class RouteConfigService : IRouteConfigService
 
         // Update optional properties
         if (!string.IsNullOrEmpty(updateDto.ServiceName))
-            route.SetServiceName(updateDto.ServiceName);
+            routeToUpdate.SetServiceName(updateDto.ServiceName);
         if (!string.IsNullOrEmpty(updateDto.LoadBalancerOptions))
-            route.SetLoadBalancerOptions(updateDto.LoadBalancerOptions);
+            routeToUpdate.SetLoadBalancerOptions(updateDto.LoadBalancerOptions);
         if (!string.IsNullOrEmpty(updateDto.AuthenticationOptions))
-            route.SetAuthenticationOptions(updateDto.AuthenticationOptions);
+            routeToUpdate.SetAuthenticationOptions(updateDto.AuthenticationOptions);
         if (!string.IsNullOrEmpty(updateDto.RateLimitOptions))
-            route.SetRateLimitOptions(updateDto.RateLimitOptions);
+            routeToUpdate.SetRateLimitOptions(updateDto.RateLimitOptions);
         if (!string.IsNullOrEmpty(updateDto.QoSOptions))
-            route.SetQoSOptions(updateDto.QoSOptions);
+            routeToUpdate.SetQoSOptions(updateDto.QoSOptions);
 
-        await _routeConfigRepository.UpdateAsync(route);
-        return MapToDto(route);
+        await _routeConfigRepository.UpdateAsync(routeToUpdate);
+        return MapToDto(routeToUpdate);
     }
 
     public async Task<bool> DeleteRouteAsync(Guid id)
     {
-        var exists = await _routeConfigRepository.ExistsAsync(id);
-        if (!exists) return false;
+        var routeToDelete = await _routeConfigRepository.GetByIdAsync(id);
+        if (routeToDelete == null) return false;
+
+        var deletedRouteEnvironment = routeToDelete.Environment;
+        var deletedRouteName = routeToDelete.Name; // Capture name for notification
 
         await _routeConfigRepository.DeleteAsync(id);
         return true;
@@ -112,15 +115,15 @@ public class RouteConfigService : IRouteConfigService
 
     public async Task<bool> ToggleRouteStatusAsync(Guid id, bool isActive)
     {
-        var route = await _routeConfigRepository.GetByIdAsync(id);
-        if (route == null) return false;
+        var routeToToggle = await _routeConfigRepository.GetByIdAsync(id); // Renamed for clarity
+        if (routeToToggle == null) return false;
 
         if (isActive)
-            route.Activate();
+            routeToToggle.Activate();
         else
-            route.Deactivate();
+            routeToToggle.Deactivate();
 
-        await _routeConfigRepository.UpdateAsync(route);
+        await _routeConfigRepository.UpdateAsync(routeToToggle);
         return true;
     }
 

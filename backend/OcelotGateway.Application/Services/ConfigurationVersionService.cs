@@ -61,7 +61,7 @@ public class ConfigurationVersionService : IConfigurationVersionService
     {
         var version = new ConfigurationVersion(
             createDto.Version,
-            createDto.Description,
+            createDto.Description ?? string.Empty,
             createDto.Environment,
             createdBy);
 
@@ -93,11 +93,11 @@ public class ConfigurationVersionService : IConfigurationVersionService
 
     public async Task<bool> PublishVersionAsync(Guid versionId, string publishedBy)
     {
-        var version = await _versionRepository.GetByIdAsync(versionId);
-        if (version == null) return false;
+        var versionToPublish = await _versionRepository.GetByIdAsync(versionId); // Renamed for clarity
+        if (versionToPublish == null) return false;
 
         // Unpublish current active version in the same environment
-        var currentActive = await _versionRepository.GetActiveConfigurationAsync(version.Environment);
+        var currentActive = await _versionRepository.GetActiveConfigurationAsync(versionToPublish.Environment);
         if (currentActive != null && currentActive.Id != versionId)
         {
             currentActive.Unpublish();
@@ -105,29 +105,32 @@ public class ConfigurationVersionService : IConfigurationVersionService
         }
 
         // Publish new version
-        version.Publish(publishedBy);
-        await _versionRepository.UpdateAsync(version);
+        versionToPublish.Publish(publishedBy);
+        await _versionRepository.UpdateAsync(versionToPublish);
 
         return true;
     }
 
     public async Task<bool> UnpublishVersionAsync(Guid versionId)
     {
-        var version = await _versionRepository.GetByIdAsync(versionId);
-        if (version == null) return false;
+        var versionToUnpublish = await _versionRepository.GetByIdAsync(versionId); // Renamed for clarity
+        if (versionToUnpublish == null) return false;
 
-        version.Unpublish();
-        await _versionRepository.UpdateAsync(version);
+        versionToUnpublish.Unpublish();
+        await _versionRepository.UpdateAsync(versionToUnpublish);
         return true;
     }
 
     public async Task<bool> DeleteVersionAsync(Guid id)
     {
-        var version = await _versionRepository.GetByIdAsync(id);
-        if (version == null) return false;
+        var versionToDelete = await _versionRepository.GetByIdAsync(id); // Renamed for clarity
+        if (versionToDelete == null) return false;
 
         // Don't allow deletion of active version
-        if (version.IsActive) return false;
+        if (versionToDelete.IsActive) return false;
+
+        var deletedVersionEnvironment = versionToDelete.Environment;
+        var deletedVersionNumber = versionToDelete.Version;
 
         await _versionRepository.DeleteAsync(id);
         return true;

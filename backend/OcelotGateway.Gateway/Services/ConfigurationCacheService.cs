@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using Ocelot.Configuration.File;
 using OcelotGateway.Domain.Interfaces;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace OcelotGateway.Gateway.Services
@@ -33,14 +35,14 @@ namespace OcelotGateway.Gateway.Services
         /// </summary>
         /// <param name="environment">The environment name</param>
         /// <returns>The cached or fresh configuration</returns>
-        public async Task<FileConfiguration?> GetConfigurationAsync(string environment)
+        public async Task<FileConfiguration> GetConfigurationAsync(string environment)
         {
-            var cacheKey = $"ocelot_config_{environment}";
+            var cacheKey = $"{environment}_ocelot_config";
             
             if (_cache.TryGetValue(cacheKey, out FileConfiguration? cachedConfig))
             {
                 _logger.LogDebug("Configuration retrieved from cache for environment: {Environment}", environment);
-                return cachedConfig;
+                return cachedConfig!;
             }
 
             _logger.LogInformation("Loading configuration from database for environment: {Environment}", environment);
@@ -52,7 +54,7 @@ namespace OcelotGateway.Gateway.Services
             if (activeConfig == null)
             {
                 _logger.LogWarning("No active configuration found for environment: {Environment}", environment);
-                return null;
+                return CreateEmptyFileConfiguration();
             }
 
             var fileConfig = ConvertToFileConfiguration(activeConfig);
@@ -77,7 +79,7 @@ namespace OcelotGateway.Gateway.Services
         /// <param name="environment">The environment name</param>
         public void InvalidateCache(string environment)
         {
-            var cacheKey = $"ocelot_config_{environment}";
+            var cacheKey = $"{environment}_ocelot_config";
             _cache.Remove(cacheKey);
             _logger.LogInformation("Configuration cache invalidated for environment: {Environment}", environment);
         }
@@ -90,6 +92,29 @@ namespace OcelotGateway.Gateway.Services
             // Since IMemoryCache doesn't have a clear all method, we'll rely on expiration
             // In a production system, you might want to track cache keys for manual removal
             _logger.LogInformation("All configuration caches invalidated (via expiration)");
+        }
+
+        /// <summary>
+        /// Creates an empty file configuration
+        /// </summary>
+        private static FileConfiguration CreateEmptyFileConfiguration()
+        {
+            return new FileConfiguration
+            {
+                GlobalConfiguration = new FileGlobalConfiguration
+                {
+                    BaseUrl = null,
+                    RequestIdKey = "OcRequestId",
+                    DownstreamScheme = "http",
+                    HttpHandlerOptions = new FileHttpHandlerOptions
+                    {
+                        AllowAutoRedirect = false,
+                        UseCookieContainer = false,
+                        UseTracing = true
+                    }
+                },
+                Routes = new List<FileRoute>()
+            };
         }
 
         /// <summary>
