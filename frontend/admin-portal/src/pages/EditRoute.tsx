@@ -111,7 +111,29 @@ export default function EditRoute() {
     );
   }
 
-  if (error || !route) {
+  // Handle missing ID parameter
+  if (!id) {
+    return (
+      <ErrorBoundary>
+        <div className="space-y-8">
+          <div className="flex items-center space-x-4">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/routes">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Routes
+              </Link>
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Invalid Route</h1>
+              <p className="text-muted-foreground">No route ID provided in the URL.</p>
+            </div>
+          </div>
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
+  if (error || (!loading && !route)) {
     return (
       <ErrorBoundary>
         <div className="space-y-8">
@@ -124,7 +146,9 @@ export default function EditRoute() {
             </Button>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Route Not Found</h1>
-              <p className="text-muted-foreground">The requested route could not be found.</p>
+              <p className="text-muted-foreground">
+                {error ? `Error: ${error}` : 'The requested route could not be found.'}
+              </p>
             </div>
           </div>
         </div>
