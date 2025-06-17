@@ -8,6 +8,7 @@ import {
   Activity,
   Wifi,
   X,
+  TestTube,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useSignalR } from '../../hooks/useSignalR';
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Route Configurations', href: '/routes', icon: Settings },
   { name: 'Configuration Versions', href: '/versions', icon: FileText },
   { name: 'System Health', href: '/health', icon: Activity },
+  { name: 'Test Page', href: '/test', icon: TestTube },
 ];
 
 interface LayoutProps {

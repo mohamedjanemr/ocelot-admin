@@ -7,6 +7,7 @@ import RoutesPage from './pages/Routes';
 import NewRoute from './pages/NewRoute';
 import ViewRoute from './pages/ViewRoute';
 import EditRoute from './pages/EditRoute';
+import TestPage from './pages/TestPage';
 import { ErrorBoundary } from './components/ui/error-boundary';
 import './App.css';
 
@@ -22,6 +23,7 @@ function App() {
               <Route path="/routes/new" element={<NewRoute />} />
               <Route path="/routes/:id" element={<ViewRoute />} />
               <Route path="/routes/:id/edit" element={<EditRoute />} />
+              <Route path="/test" element={<TestPage />} />
               <Route path="/versions" element={<div className="p-6 text-center text-muted-foreground">Configuration Versions page coming soon...</div>} />
               <Route path="/health" element={<div className="p-6 text-center text-muted-foreground">System Health page coming soon...</div>} />
             </Routes>
